@@ -15,7 +15,8 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types as genai_types
 import anthropic as _anthropic
 import iyzipay
 import json as _json
@@ -323,28 +324,31 @@ def _make_watermarked_preview_b64(clean_b64: str) -> str:
 async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"):
     try:
         prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-preview-image-generation",
-            system_instruction=(
-                "You are a master cinematographer restoring vintage portraits. You never "
-                "change a photograph's era, pose, clothing or composition. You only add "
-                "subtle restoration and cinematic lighting."
-            ),
-        )
-        image_part = {"mime_type": "image/jpeg", "data": image_b64}
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        import base64 as _base64
+        image_bytes = _base64.b64decode(image_b64)
         response = await asyncio.to_thread(
-            model.generate_content,
-            [prompt, image_part],
-            generation_config=genai.GenerationConfig(response_modalities=["image", "text"]),
+            client.models.generate_content,
+            model="gemini-2.0-flash-preview-image-generation",
+            contents=[
+                genai_types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                prompt,
+            ],
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["image", "text"],
+                system_instruction=(
+                    "You are a master cinematographer restoring vintage portraits. You never "
+                    "change a photograph's era, pose, clothing or composition. You only add "
+                    "subtle restoration and cinematic lighting."
+                ),
+            ),
         )
         images = []
         text = ""
         for part in response.candidates[0].content.parts:
-            if hasattr(part, "inline_data") and part.inline_data:
-                import base64 as _base64
+            if part.inline_data:
                 images.append({"data": _base64.b64encode(part.inline_data.data).decode()})
-            elif hasattr(part, "text") and part.text:
+            elif part.text:
                 text += part.text
 
         if not images:
