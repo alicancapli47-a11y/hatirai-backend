@@ -979,6 +979,69 @@ async def get_video(job_id: str):
 EMERGENT_AUTH_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 
 
+class EmailRegisterBody(BaseModel):
+    email: str
+    password: str
+    name: str
+
+
+class EmailLoginBody(BaseModel):
+    email: str
+    password: str
+
+
+@api_router.post("/auth/register")
+async def auth_register(body: EmailRegisterBody):
+    import hashlib
+    email = body.email.lower().strip()
+    if not email or not body.password:
+        raise HTTPException(status_code=400, detail="Email ve şifre gerekli")
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı")
+    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    await db.users.insert_one({
+        "user_id": user_id, "email": email, "name": body.name.strip(),
+        "picture": None, "pw_hash": pw_hash,
+        "created_at": datetime.now(timezone.utc),
+    })
+    session_token = uuid.uuid4().hex
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": user_id, "session_token": session_token,
+        "expires_at": expires, "created_at": datetime.now(timezone.utc),
+    })
+    return {
+        "session_token": session_token,
+        "user": {"user_id": user_id, "email": email, "name": body.name.strip(), "picture": None},
+        "expires_at": expires,
+    }
+
+
+@api_router.post("/auth/login")
+async def auth_login(body: EmailLoginBody):
+    import hashlib
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Email veya şifre hatalı")
+    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    if user.get("pw_hash") != pw_hash:
+        raise HTTPException(status_code=401, detail="Email veya şifre hatalı")
+    session_token = uuid.uuid4().hex
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": user["user_id"], "session_token": session_token,
+        "expires_at": expires, "created_at": datetime.now(timezone.utc),
+    })
+    return {
+        "session_token": session_token,
+        "user": {"user_id": user["user_id"], "email": email, "name": user.get("name", ""), "picture": user.get("picture")},
+        "expires_at": expires,
+    }
+
+
 class User(BaseModel):
     user_id: str
     email: str
