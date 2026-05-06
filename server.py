@@ -998,6 +998,72 @@ class EmailLoginBody(BaseModel):
     password: str
 
 
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+
+
+class ForgotPasswordBody(BaseModel):
+    email: str
+
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    password: str
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordBody):
+    import hashlib, secrets
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        return {"message": "Eğer bu email kayıtlıysa sıfırlama linki gönderildi."}
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    await db.password_resets.insert_one({
+        "email": email,
+        "token": token,
+        "expires_at": expires,
+        "used": False,
+        "created_at": datetime.now(timezone.utc),
+    })
+    reset_url = f"{PUBLIC_BACKEND_URL}/reset-password?token={token}"
+    if RESEND_API_KEY:
+        import requests as _req
+        _req.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "from": "HatırAI <noreply@hatirai.com>",
+                "to": [email],
+                "subject": "Şifre Sıfırlama — HatırAI",
+                "html": f"""
+                <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;">
+                  <h1 style="color:#C9A961;font-size:32px;letter-spacing:4px;margin-bottom:8px;">HATIR<span style="color:#E8E0D0;">AI</span></h1>
+                  <hr style="border-color:#1E1C18;margin:24px 0;">
+                  <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Şifrenizi sıfırlamak için aşağıdaki butona tıklayın. Link 1 saat geçerlidir.</p>
+                  <a href="{reset_url}" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">ŞİFREYİ SIFIRLA</a>
+                  <p style="font-size:11px;color:#4A4540;">Bu isteği siz yapmadıysanız bu emaili görmezden gelin.</p>
+                </div>
+                """
+            }
+        )
+    return {"message": "Eğer bu email kayıtlıysa sıfırlama linki gönderildi."}
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordBody):
+    import hashlib
+    record = await db.password_resets.find_one({"token": body.token, "used": False})
+    if not record:
+        raise HTTPException(status_code=400, detail="Geçersiz veya süresi dolmuş link.")
+    if record["expires_at"].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Link süresi dolmuş.")
+    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    await db.users.update_one({"email": record["email"]}, {"$set": {"pw_hash": pw_hash}})
+    await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
+    return {"message": "Şifreniz başarıyla güncellendi."}
+
+
 @api_router.post("/auth/register")
 async def auth_register(body: EmailRegisterBody):
     import hashlib
