@@ -323,33 +323,40 @@ def _make_watermarked_preview_b64(clean_b64: str) -> str:
 
 async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"):
     try:
-        prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
-        client = genai.Client(api_key=GEMINI_API_KEY)
         import base64 as _base64
+        prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
+
+        # fal.ai'ye base64 görseli upload et, URL al
         image_bytes = _base64.b64decode(image_b64)
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-3.1-flash-image-preview",
-            contents=[
-                genai_types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-                prompt,
-            ],
-            config=genai_types.GenerateContentConfig(
-                response_modalities=["image", "text"],
-                system_instruction=(
-                    "You are a master cinematographer restoring vintage portraits. You never "
-                    "change a photograph's era, pose, clothing or composition. You only add "
-                    "subtle restoration and cinematic lighting."
-                ),
-            ),
+        tmp_path = f"/tmp/upload_{photo_id}.jpg"
+        with open(tmp_path, "wb") as f:
+            f.write(image_bytes)
+        image_url = await fal_client.upload_file_async(tmp_path)
+
+        # fal.ai flux-kontext (image-to-image dönüşümü)
+        handle = await fal_client.submit_async(
+            "fal-ai/flux-lora/image-to-image",
+            arguments={
+                "prompt": prompt,
+                "image_url": image_url,
+                "strength": 0.75,
+                "num_inference_steps": 28,
+                "guidance_scale": 3.5,
+                "num_images": 1,
+                "output_format": "jpeg",
+            },
         )
+        result = await handle.get()
+
         images = []
-        text = ""
-        for part in response.candidates[0].content.parts:
-            if part.inline_data:
-                images.append({"data": _base64.b64encode(part.inline_data.data).decode()})
-            elif part.text:
-                text += part.text
+        text = result.get("description", "")
+        if result.get("images"):
+            for img in result["images"]:
+                img_url = img.get("url", "")
+                if img_url:
+                    import requests as _req
+                    img_bytes = _req.get(img_url, timeout=60).content
+                    images.append({"data": _base64.b64encode(img_bytes).decode()})
 
         if not images:
             await db.photos.update_one(
