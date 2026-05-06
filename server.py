@@ -745,8 +745,8 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
     checkout_request = {
         "locale": "tr",
         "conversationId": conversation_id,
-        "price": "200.00",
-        "paidPrice": "200.00",
+        "price": "100.00",
+        "paidPrice": "100.00",
         "currency": "TRY",
         "basketId": f"hatirai-{body.job_id}",
         "paymentGroup": "PRODUCT",
@@ -787,7 +787,7 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
                 "name": "HatırAI Sinematik Canlandırma",
                 "category1": "Dijital Icerik",
                 "itemType": "VIRTUAL",
-                "price": "200.00",
+                "price": "100.00",
             }
         ],
     }
