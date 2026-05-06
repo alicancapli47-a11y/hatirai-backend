@@ -329,7 +329,7 @@ async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"
         image_bytes = _base64.b64decode(image_b64)
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.0-flash-preview-image-generation",
+            model="gemini-3.1-flash-image-preview",
             contents=[
                 genai_types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                 prompt,
