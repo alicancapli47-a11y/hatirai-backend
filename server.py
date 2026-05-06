@@ -333,17 +333,17 @@ async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"
             f.write(image_bytes)
         image_url = await fal_client.upload_file_async(tmp_path)
 
-        # fal.ai flux-kontext (image-to-image dönüşümü)
+        # fal.ai nano-banana-2 (Gemini 3.1 Flash Image) ile görsel dönüşümü
         handle = await fal_client.submit_async(
-            "fal-ai/flux-lora/image-to-image",
+            "fal-ai/nano-banana-2/edit",
             arguments={
                 "prompt": prompt,
-                "image_url": image_url,
-                "strength": 0.75,
-                "num_inference_steps": 28,
-                "guidance_scale": 3.5,
+                "image_urls": [image_url],
                 "num_images": 1,
+                "aspect_ratio": "auto",
                 "output_format": "jpeg",
+                "resolution": "1K",
+                "safety_tolerance": "4",
             },
         )
         result = await handle.get()
@@ -383,8 +383,8 @@ async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"
 
 @api_router.post("/photo/transform", response_model=PhotoPublic)
 async def transform_photo(body: PhotoTransformRequest):
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY missing")
+    if not FAL_KEY:
+        raise HTTPException(status_code=500, detail="FAL_KEY missing")
     img_b64 = body.image_base64.split(",", 1)[-1] if body.image_base64.startswith("data:") else body.image_base64
     record = PhotoRecord(original_b64=img_b64, era=body.era)
     await db.photos.insert_one(record.model_dump())
