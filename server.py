@@ -14,6 +14,9 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
+from passlib.context import CryptContext
+from collections import defaultdict
+import time
 
 import google.genai as genai
 from google.genai import types as genai_types
@@ -1000,6 +1003,22 @@ class EmailLoginBody(BaseModel):
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
+# Bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Rate limiting — IP başına login denemesi
+_login_attempts: dict = defaultdict(list)
+_RATE_LIMIT_MAX = 10  # 10 deneme
+_RATE_LIMIT_WINDOW = 300  # 5 dakika
+
+def _check_rate_limit(ip: str):
+    now = time.time()
+    attempts = [t for t in _login_attempts[ip] if now - t < _RATE_LIMIT_WINDOW]
+    _login_attempts[ip] = attempts
+    if len(attempts) >= _RATE_LIMIT_MAX:
+        raise HTTPException(status_code=429, detail="Çok fazla deneme. 5 dakika bekleyin.")
+    _login_attempts[ip].append(now)
+
 
 class ForgotPasswordBody(BaseModel):
     email: str
@@ -1058,22 +1077,24 @@ async def reset_password(body: ResetPasswordBody):
         raise HTTPException(status_code=400, detail="Geçersiz veya süresi dolmuş link.")
     if record["expires_at"].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Link süresi dolmuş.")
-    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    pw_hash = pwd_context.hash(body.password)
     await db.users.update_one({"email": record["email"]}, {"$set": {"pw_hash": pw_hash}})
     await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
     return {"message": "Şifreniz başarıyla güncellendi."}
 
 
 @api_router.post("/auth/register")
-async def auth_register(body: EmailRegisterBody):
-    import hashlib
+async def auth_register(body: EmailRegisterBody, request: Request):
+    _check_rate_limit(request.client.host)
     email = body.email.lower().strip()
     if not email or not body.password:
         raise HTTPException(status_code=400, detail="Email ve şifre gerekli")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalı")
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı")
-    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    pw_hash = pwd_context.hash(body.password)
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     await db.users.insert_one({
         "user_id": user_id, "email": email, "name": body.name.strip(),
@@ -1094,14 +1115,11 @@ async def auth_register(body: EmailRegisterBody):
 
 
 @api_router.post("/auth/login")
-async def auth_login(body: EmailLoginBody):
-    import hashlib
+async def auth_login(body: EmailLoginBody, request: Request):
+    _check_rate_limit(request.client.host)
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=401, detail="Email veya şifre hatalı")
-    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
-    if user.get("pw_hash") != pw_hash:
+    if not user or not pwd_context.verify(body.password, user.get("pw_hash", "")):
         raise HTTPException(status_code=401, detail="Email veya şifre hatalı")
     session_token = uuid.uuid4().hex
     expires = datetime.now(timezone.utc) + timedelta(days=7)
