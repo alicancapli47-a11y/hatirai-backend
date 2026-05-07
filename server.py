@@ -1047,25 +1047,30 @@ async def forgot_password(body: ForgotPasswordBody):
     })
     reset_url = f"{PUBLIC_BACKEND_URL}/reset-password?token={token}"
     if RESEND_API_KEY:
-        import requests as _req
-        _req.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "from": "HatırAI <noreply@hatirai.com>",
-                "to": [email],
-                "subject": "Şifre Sıfırlama — HatırAI",
-                "html": f"""
-                <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;">
-                  <h1 style="color:#C9A961;font-size:32px;letter-spacing:4px;margin-bottom:8px;">HATIR<span style="color:#E8E0D0;">AI</span></h1>
-                  <hr style="border-color:#1E1C18;margin:24px 0;">
-                  <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Şifrenizi sıfırlamak için aşağıdaki butona tıklayın. Link 1 saat geçerlidir.</p>
-                  <a href="{reset_url}" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">ŞİFREYİ SIFIRLA</a>
-                  <p style="font-size:11px;color:#4A4540;">Bu isteği siz yapmadıysanız bu emaili görmezden gelin.</p>
-                </div>
-                """
-            }
-        )
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                    json={
+                        "from": "HatırAI <noreply@hatirai.com>",
+                        "to": [email],
+                        "subject": "Şifre Sıfırlama — HatırAI",
+                        "html": f"""
+                        <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;">
+                          <h1 style="color:#C9A961;font-size:32px;letter-spacing:4px;margin-bottom:8px;">HATIR<span style="color:#E8E0D0;">AI</span></h1>
+                          <hr style="border-color:#1E1C18;margin:24px 0;">
+                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Şifrenizi sıfırlamak için aşağıdaki butona tıklayın. Link 1 saat geçerlidir.</p>
+                          <a href="{reset_url}" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">ŞİFREYİ SIFIRLA</a>
+                          <p style="font-size:11px;color:#4A4540;">Bu isteği siz yapmadıysanız bu emaili görmezden gelin.</p>
+                        </div>
+                        """
+                    }
+                )
+                logger.info(f"[resend] status={resp.status_code} body={resp.text[:200]}")
+        except Exception as e:
+            logger.error(f"[resend] Email gönderilemedi: {e}")
     return {"message": "Eğer bu email kayıtlıysa sıfırlama linki gönderildi."}
 
 
