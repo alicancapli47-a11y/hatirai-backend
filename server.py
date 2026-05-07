@@ -1112,6 +1112,31 @@ async def auth_register(body: EmailRegisterBody, request: Request):
         "user_id": user_id, "session_token": session_token,
         "expires_at": expires, "created_at": datetime.now(timezone.utc),
     })
+    # Hoşgeldin maili gönder
+    if RESEND_API_KEY:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                    json={
+                        "from": "HatırAI <noreply@hatirai.com>",
+                        "to": [email],
+                        "subject": "HatırAI'ya Hoş Geldiniz",
+                        "html": f"""
+                        <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;">
+                          <h1 style="color:#C9A961;font-size:32px;letter-spacing:4px;margin-bottom:8px;">HATIR<span style="color:#E8E0D0;">AI</span></h1>
+                          <hr style="border-color:#1E1C18;margin:24px 0;">
+                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Merhaba {body.name.strip()},</p>
+                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">HatırAI'ya hoş geldiniz. Artık yakınlarınızın anılarını sinematik videolara dönüştürebilirsiniz.</p>
+                          <a href="https://hatirai.com" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">UYGULAMAYA GİT</a>
+                        </div>
+                        """
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"[register] Hoşgeldin maili gönderilemedi: {e}")
     return {
         "session_token": session_token,
         "user": {"user_id": user_id, "email": email, "name": body.name.strip(), "picture": None},
