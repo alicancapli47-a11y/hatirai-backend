@@ -1330,6 +1330,19 @@ async def user_history(user: dict = Depends(require_user)):
 
 # ---------- End User Auth ----------
 
+@api_router.post("/admin/test-payment/{job_id}")
+async def admin_test_payment(job_id: str, _: str = Depends(require_admin)):
+    job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job bulunamadı")
+    await db.video_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"payment_status": "paid", "iyzico_payment_id": "test_payment"}}
+    )
+    asyncio.create_task(_run_veo_pipeline(job_id))
+    return {"message": f"Job {job_id} ödendi, video üretimi başladı"}
+
+
 @api_router.get("/admin/jobs", response_model=List[VideoJob])
 async def admin_all(_: str = Depends(require_admin)):
     cursor = db.video_jobs.find({}, {"_id": 0}).sort("created_at", -1)
