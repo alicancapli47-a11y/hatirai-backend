@@ -1302,6 +1302,19 @@ async def user_history(user: dict = Depends(require_user)):
     for i in items:
         photo = await db.photos.find_one({"id": i.get("photo_id")}, {"_id": 0, "noir_b64": 1})
         noir_b64 = (photo or {}).get("noir_b64")
+        thumb_b64 = None
+        if noir_b64:
+            try:
+                from PIL import Image as PilImage
+                import io
+                img_bytes = _b64.b64decode(noir_b64)
+                img = PilImage.open(io.BytesIO(img_bytes))
+                img.thumbnail((200, 300))
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=60)
+                thumb_b64 = _b64.b64encode(buf.getvalue()).decode()
+            except Exception:
+                thumb_b64 = None
         result.append({
             "job_id": i.get("id"),
             "photo_id": i.get("photo_id"),
@@ -1310,7 +1323,7 @@ async def user_history(user: dict = Depends(require_user)):
             "kind": i.get("kind"),
             "media_url": i.get("media_url"),
             "created_at": i.get("created_at"),
-            "noir_b64": noir_b64,
+            "noir_b64": thumb_b64,
         })
     return result
 
