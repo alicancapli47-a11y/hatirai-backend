@@ -600,16 +600,40 @@ async def _run_veo_pipeline(job_id: str):
 
         clip_paths: List[str] = []
         current_ref = ref_url
+
+        import random
+        ATMOSPHERES = [
+            "Cinematic, dark gallery atmosphere with subtle warm golden rim light. ",
+            "Cinematic, soft candlelight in a dimly lit room, warm amber tones. ",
+            "Cinematic, gentle window light from the side, soft shadows, intimate. ",
+            "Cinematic, warm late afternoon golden hour light, soft and nostalgic. ",
+            "Cinematic, soft overhead lamp light, dark background, theatrical. ",
+        ]
+        EXPRESSIONS = [
+            "The person looks straight at the camera with a gentle, loving, warm expression. ",
+            "The person gazes softly at the camera with a tender, nostalgic expression. ",
+            "The person looks into the camera with calm, warm, deeply affectionate eyes. ",
+            "The person faces the camera with a quiet, loving, emotional expression. ",
+        ]
+        MOVEMENTS = [
+            "Subtle natural lip sync matching the spoken line, slow blinks, intimate medium close-up, soft film grain, shallow depth. ",
+            "Gentle lip movement, soft natural blinks, warm close-up, cinematic film grain, bokeh background. ",
+            "Natural speech movement, slow blinks, medium close-up, soft focus background, vintage film texture. ",
+            "Subtle mouth movement matching the words, intimate close-up, slow blinks, shallow depth of field. ",
+        ]
+        atmosphere = random.choice(ATMOSPHERES)
+        expression = random.choice(EXPRESSIONS)
+        movement = random.choice(MOVEMENTS)
+
         for i, line in enumerate(chunks):
             prompt = (
-                "Cinematic, dark gallery atmosphere with subtle warm golden rim light. "
+                atmosphere +
                 "CRITICAL — preserve the exact age, face, identity, hair, skin and "
                 "clothing of the person shown in the reference image. DO NOT age, "
                 "rejuvenate, stylize or alter their appearance in any way; they must "
-                "look identical in age to the reference. "
-                "The person looks straight at the camera with a gentle, loving, warm "
-                "expression. Subtle natural lip sync matching the spoken line, slow "
-                "blinks, intimate medium close-up, soft film grain, shallow depth. "
+                "look identical in age to the reference. " +
+                expression +
+                movement +
                 f"Speaks softly in Turkish: \"{line.strip()}\". "
                 "Static camera; no zoom, no pan; preserve the reference face one-to-one."
             )
