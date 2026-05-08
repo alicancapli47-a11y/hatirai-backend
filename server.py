@@ -1345,6 +1345,73 @@ async def user_history(user: dict = Depends(require_user)):
 
 # ---------- End User Auth ----------
 
+@api_router.post("/payment/shopier-osb")
+async def shopier_osb(request: Request):
+    """Shopier Otomatik Sipariş Bildirimi (OSB) webhook endpoint."""
+    import hmac, hashlib
+    try:
+        body = await request.body()
+        data = {}
+        # Form data olarak parse et
+        form = await request.form()
+        for key, value in form.items():
+            data[key] = value
+
+        logger.info(f"[shopier-osb] data={data}")
+
+        # OSB şifresi ile doğrulama
+        osb_user = os.environ.get("SHOPIER_OSB_USER", "")
+        osb_pass = os.environ.get("SHOPIER_OSB_PASS", "")
+
+        # Shopier'den gelen sipariş bilgileri
+        order_id = data.get("BILL_ORDER_ID", "")  # job_id burada
+        payment_status = data.get("STATUS", "")
+        platform_order_id = data.get("PLATFORM_ORDER_ID", "")
+
+        logger.info(f"[shopier-osb] order_id={order_id} status={payment_status}")
+
+        if payment_status != "success":
+            logger.warning(f"[shopier-osb] Ödeme başarısız: {payment_status}")
+            return {"status": "ignored"}
+
+        # job_id'yi bul — order_id veya platform_order_id'den
+        job_id = order_id or platform_order_id
+        if not job_id:
+            logger.error("[shopier-osb] job_id bulunamadı")
+            return {"status": "error", "detail": "job_id missing"}
+
+        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            # order_id ile arama
+            job = await db.video_jobs.find_one({"shopier_order_id": job_id}, {"_id": 0})
+
+        if not job:
+            logger.error(f"[shopier-osb] Job bulunamadı: {job_id}")
+            return {"status": "error", "detail": "job not found"}
+
+        if job.get("payment_status") == "paid":
+            logger.info(f"[shopier-osb] Zaten ödendi: {job_id}")
+            return {"status": "already_paid"}
+
+        # Ödeme işle
+        await db.video_jobs.update_one(
+            {"id": job["id"]},
+            {"$set": {
+                "payment_status": "paid",
+                "shopier_order_id": order_id,
+                "paid_at": datetime.now(timezone.utc),
+            }}
+        )
+
+        asyncio.create_task(_run_veo_pipeline(job["id"]))
+        logger.info(f"[shopier-osb] ✅ Ödeme işlendi, veo başlatıldı: {job['id']}")
+        return {"status": "ok"}
+
+    except Exception as e:
+        logger.exception(f"[shopier-osb] Hata: {e}")
+        return {"status": "error", "detail": str(e)}
+
+
 @api_router.post("/admin/test-payment/{job_id}")
 async def admin_test_payment(job_id: str, _: str = Depends(require_admin)):
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
