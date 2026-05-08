@@ -224,30 +224,30 @@ ERA_PROMPTS: dict[str, str] = {
         "sharpen the face, fix any blur, recover natural skin texture, clear sharp eyes "
         "looking straight at the lens. PRIORITY 2 — REFRAME so the subject is facing the "
         "camera with a frontal headshot angle (head straight, eyes meeting the camera, "
-        "shoulders centered). Even if the original was a side profile, redraw to a frontal "
-        "view while preserving the person's identity, age, hair, clothing and 1950s-70s era. "
-        "PRIORITY 3 — Apply 1950s Hollywood B&W noir lighting: strong key light, soft rim, "
-        "deep chiaroscuro, silver-warm grayscale tones, fine film grain. "
+        "shoulders centered). Preserve the person's identity, age, hair and clothing. "
+        "PRIORITY 3 — Replace background with pure solid black. Apply 1950s Hollywood "
+        "B&W noir lighting: strong key light from one side, soft warm rim light, deep "
+        "chiaroscuro shadows, silver-warm grayscale tones, fine film grain. "
         "Output ONLY the final image, sharp and ready for further animation."
     ),
     "80s": (
         "Restore and dramatize this old portrait. PRIORITY 1 — fix quality: heavily denoise, "
         "sharpen the face, fix any blur, restore natural skin texture, clear sharp eyes. "
         "PRIORITY 2 — REFRAME so the subject is facing the camera with a frontal headshot "
-        "angle, eyes meeting the lens. Preserve identity, age, hair, clothing and the late "
-        "1980s – early 1990s era. PRIORITY 3 — Color-grade like warm VHS / analog film: "
-        "faded pastel tones, soft halation around highlights, warm film grain, slight "
-        "chromatic aberration, gentle golden rim light. Keep COLORS — not B&W. "
+        "angle, eyes meeting the lens. Preserve identity, age, hair and clothing. "
+        "PRIORITY 3 — Replace background with pure solid black. Apply warm 80s studio "
+        "portrait lighting: strong golden rim light, soft fill light, warm VHS color grade, "
+        "faded pastel tones, soft halation, gentle film grain. Keep COLORS — not B&W. "
         "Output ONLY the final image, sharp and ready for animation."
     ),
     "modern": (
         "Restore and dramatize this portrait. PRIORITY 1 — fix quality: heavily denoise, "
         "sharpen the face, fix any blur, restore skin texture, clear sharp eyes meeting "
         "the lens. PRIORITY 2 — REFRAME so the subject is facing the camera with a frontal "
-        "headshot angle, head straight, shoulders centered. Preserve identity, age, hair, "
-        "clothing and the photograph's original era. PRIORITY 3 — Apply a refined modern "
-        "high-contrast cinema grade: deep true blacks, rich shadows, clean neutral midtones, "
-        "subtle warm golden highlight rim, delicate film grain. Keep colors natural. "
+        "headshot angle, head straight, shoulders centered. Preserve identity, age, hair "
+        "and clothing. PRIORITY 3 — Replace background with pure solid black. Apply modern "
+        "cinematic studio lighting: dramatic side rim light with warm golden highlights, "
+        "deep true blacks, rich shadows, clean neutral midtones, delicate film grain. "
         "Output ONLY the final image, sharp and ready for animation."
     ),
 }
@@ -446,11 +446,26 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
 
 
 def _build_full_script(name: str, ai_sentence: str) -> str:
-    """Final Turkish script the figure 'speaks' in the video."""
+    import random
+    OPENINGS = [
+        f"Selam {name}.",
+        f"{name}, seni görünce ne kadar özlediğimi anladım.",
+        f"Merhaba {name}.",
+    ]
+    MIDDLES = [
+        "Biliyorum beni çok özledin, ama ben de seni çok özledim.",
+        "Her gün aklımdasın, bunu bil.",
+        "Seni düşünmeden tek bir gün geçmiyor.",
+    ]
+    CLOSINGS = [
+        f"Seni çok seviyorum {name}. Kendine iyi bak.",
+        f"Her zaman kalbimdesin {name}.",
+        f"Seni seviyorum {name}. Güçlü ol.",
+    ]
     return (
-        f"Selam {name}. {ai_sentence}. Biliyorum beni çok özledin, "
-        f"ama ben de seni çok özledim. Umarım yakında kavuşuruz. "
-        f"Seni çok seviyorum {name}. Kendine iyi bak, hayata tutunmaya çalış."
+        f"{random.choice(OPENINGS)} {ai_sentence}. "
+        f"{random.choice(MIDDLES)} "
+        f"{random.choice(CLOSINGS)}"
     )
 
 
@@ -495,7 +510,7 @@ async def get_memory_form(photo_id: str):
 
 
 # ---------- Veo 3.1 sequential video generation ----------
-NUM_CLIPS = 2  # 2 × 8s = 16s total — fewer transitions = less audio drift
+NUM_CLIPS = 2  # 2 × 8s = 16s total
 
 
 def _ffmpeg_last_frame(video_path: str, frame_path: str) -> None:
@@ -602,12 +617,11 @@ async def _run_veo_pipeline(job_id: str):
         current_ref = ref_url
 
         import random
-        ATMOSPHERES = [
-            "Cinematic, dark gallery atmosphere with subtle warm golden rim light. ",
-            "Cinematic, soft candlelight in a dimly lit room, warm amber tones. ",
-            "Cinematic, gentle window light from the side, soft shadows, intimate. ",
-            "Cinematic, warm late afternoon golden hour light, soft and nostalgic. ",
-            "Cinematic, soft overhead lamp light, dark background, theatrical. ",
+        LIGHTINGS = [
+            "dramatic warm golden rim light from the right, soft fill from the left, ",
+            "strong side key light with warm amber tone, deep shadow on opposite side, ",
+            "gentle warm backlight creating a halo effect, soft frontal fill light, ",
+            "cinematic three-point studio lighting, warm golden highlights, ",
         ]
         EXPRESSIONS = [
             "The person looks straight at the camera with a gentle, loving, warm expression. ",
@@ -616,18 +630,19 @@ async def _run_veo_pipeline(job_id: str):
             "The person faces the camera with a quiet, loving, emotional expression. ",
         ]
         MOVEMENTS = [
-            "Subtle natural lip sync matching the spoken line, slow blinks, intimate medium close-up, soft film grain, shallow depth. ",
-            "Gentle lip movement, soft natural blinks, warm close-up, cinematic film grain, bokeh background. ",
-            "Natural speech movement, slow blinks, medium close-up, soft focus background, vintage film texture. ",
-            "Subtle mouth movement matching the words, intimate close-up, slow blinks, shallow depth of field. ",
+            "Subtle natural lip sync matching the spoken line, slow blinks, intimate medium close-up, soft film grain. ",
+            "Gentle lip movement, soft natural blinks, warm close-up, cinematic film grain. ",
+            "Natural speech movement, slow blinks, medium close-up, vintage film texture. ",
+            "Subtle mouth movement matching the words, intimate close-up, slow blinks. ",
         ]
-        atmosphere = random.choice(ATMOSPHERES)
+        lighting = random.choice(LIGHTINGS)
         expression = random.choice(EXPRESSIONS)
         movement = random.choice(MOVEMENTS)
 
         for i, line in enumerate(chunks):
             prompt = (
-                atmosphere +
+                "Cinematic studio portrait, PURE BLACK BACKGROUND — no environment, no room, no objects, only black. " +
+                lighting +
                 "CRITICAL — preserve the exact age, face, identity, hair, skin and "
                 "clothing of the person shown in the reference image. DO NOT age, "
                 "rejuvenate, stylize or alter their appearance in any way; they must "
