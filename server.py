@@ -1298,15 +1298,21 @@ async def user_history(user: dict = Depends(require_user)):
         {"user_id": user["user_id"]}, {"_id": 0}
     ).sort("created_at", -1).limit(50)
     items = await cursor.to_list(length=50)
-    return [{
-        "job_id": i.get("id"),
-        "photo_id": i.get("photo_id"),
-        "status": i.get("status"),
-        "payment_status": i.get("payment_status"),
-        "kind": i.get("kind"),
-        "media_url": i.get("media_url"),
-        "created_at": i.get("created_at"),
-    } for i in items]
+    result = []
+    for i in items:
+        photo = await db.photos.find_one({"id": i.get("photo_id")}, {"_id": 0, "noir_b64": 1})
+        noir_b64 = (photo or {}).get("noir_b64")
+        result.append({
+            "job_id": i.get("id"),
+            "photo_id": i.get("photo_id"),
+            "status": i.get("status"),
+            "payment_status": i.get("payment_status"),
+            "kind": i.get("kind"),
+            "media_url": i.get("media_url"),
+            "created_at": i.get("created_at"),
+            "noir_b64": noir_b64,
+        })
+    return result
 
 
 # ---------- End User Auth ----------
