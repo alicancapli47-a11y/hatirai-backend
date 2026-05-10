@@ -1722,6 +1722,7 @@ async def chat_prepare(request: Request):
 
         did_key = os.environ.get("DID_API_KEY", "")
         stream_data = None
+        logger.info(f"[chat/prepare] DID_API_KEY var mı: {bool(did_key)}, uzunluk: {len(did_key)}")
         if did_key:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
@@ -1730,6 +1731,7 @@ async def chat_prepare(request: Request):
                     json={"source_url": f"data:image/jpeg;base64,{restored_b64}"},
                     timeout=30,
                 )
+                logger.info(f"[chat/prepare] D-ID response: {resp.status_code} {resp.text[:200]}")
                 if resp.status_code == 200:
                     stream_data = resp.json()
 
