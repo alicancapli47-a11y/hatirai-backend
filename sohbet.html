@@ -264,7 +264,7 @@ async function connectDID() {
     const r = await fetch(`${BACKEND}/api/chat/did-token`, { method: 'POST' });
     const d = await r.json();
     didApiKey = d.token;
-    const authHeader = 'Basic ' + btoa(didApiKey + ':');
+    const authHeader = "Basic " + didApiKey;
 
     peerConnection = new RTCPeerConnection({ iceServers: [] });
     peerConnection.ontrack = (e) => {
@@ -315,7 +315,7 @@ async function connectDID() {
 
 async function sendToDID(audioB64) {
   if (!streamId || !sessionId || !didApiKey) return;
-  const authHeader = 'Basic ' + btoa(didApiKey + ':');
+  const authHeader = "Basic " + didApiKey;
   try {
     await fetch(`https://api.d-id.com/talks/streams/${streamId}`, {
       method: 'POST',
