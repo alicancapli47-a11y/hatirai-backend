@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HatırAI · Canlı Sohbet</title>
-<script src="https://cdn.jsdelivr.net/npm/@heygen/streaming-avatar@latest/dist/streaming-avatar.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@heygen/liveavatar-web-sdk@latest/dist/liveavatar-web-sdk.umd.cjs"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; height:100vh; overflow:hidden; position:relative; }
@@ -231,13 +231,15 @@ async function startSession() {
 
     setProgress(60, 'Bağlantı kuruluyor...');
 
-    // HeyGen StreamingAvatar SDK
-    avatar = new StreamingAvatar({ token });
+    // LiveAvatar SDK
+    const LA = window.LiveAvatarWebSDK || window.LiveAvatar;
+    if (!LA) throw new Error('LiveAvatar SDK yüklenemedi');
+    avatar = new LA.LiveAvatarSession({ token });
 
-    avatar.on('stream_ready', (event) => {
-      console.log('[HeyGen] stream ready!');
+    avatar.on('session_ready', (event) => {
+      console.log('[LiveAvatar] session ready!');
       const vid = document.getElementById('avatarVideo');
-      vid.srcObject = event.detail;
+      if (event.stream) vid.srcObject = event.stream;
       vid.style.display = 'block';
       document.getElementById('placeholder').style.display = 'none';
       document.getElementById('statusText').textContent = 'Bağlandı ✓';
@@ -245,15 +247,9 @@ async function startSession() {
       addBubble('avatar', `Selam ${name.split(' ')[0]}... Seni çok özledim.`);
     });
 
-    avatar.on('stream_disconnected', () => {
-      console.log('[HeyGen] disconnected');
-      document.getElementById('statusText').textContent = 'Bağlantı kesildi';
-    });
-
-    await avatar.createStartAvatar({
-      quality: 'low',
-      avatarName: AVATAR_ID,
-      voice: { voiceId: selectedVoiceId },
+    await avatar.startSession({
+      avatar_id: AVATAR_ID,
+      mode: 'FULL',
     });
 
     setProgress(100, 'Hazır!');
