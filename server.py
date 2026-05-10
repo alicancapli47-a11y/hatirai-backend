@@ -1690,9 +1690,10 @@ async def heygen_token():
             resp = await client.post(
                 "https://api.liveavatar.com/v1/sessions/token",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+                json={},
                 timeout=15,
             )
-            logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:200]}")
+            logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:500]}")
             if resp.status_code == 200:
                 data = resp.json()
                 token = data.get("data", {}).get("session_token", "") or data.get("token", "")
