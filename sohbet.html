@@ -80,6 +80,8 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
 .photo-preview { width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid rgba(200,169,110,.4); display:none; }
 .start-btn { width:100%; max-width:340px; padding:14px; background:#c8a96e; color:#000; border:none; border-radius:8px; font-size:14px; letter-spacing:2px; cursor:pointer; text-transform:uppercase; font-weight:500; }
 .start-btn:disabled { opacity:.5; cursor:not-allowed; }
+.voice-btn { flex:1; padding:10px 6px; background:rgba(255,255,255,.06); border:0.5px solid rgba(255,255,255,.15); border-radius:8px; color:rgba(255,255,255,.6); font-size:12px; cursor:pointer; transition:all .2s; }
+.voice-btn.active { background:rgba(200,169,110,.15); border-color:#c8a96e; color:#c8a96e; }
 .prog { width:100%; max-width:340px; display:none; }
 .prog-bar { height:3px; background:rgba(200,169,110,.2); border-radius:2px; overflow:hidden; }
 .prog-fill { height:100%; background:#c8a96e; width:0%; transition:width .5s; border-radius:2px; }
@@ -104,6 +106,15 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
   <input class="inp" id="personName" placeholder="Yakınınızın adı (örn: Elif)" />
   <input class="inp" id="relation" placeholder="İlişkiniz (örn: annem, babam)" />
   <textarea class="inp" id="context" placeholder="Kısaca ondan bahsedin..." rows="2" style="resize:none"></textarea>
+
+  <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;">
+    <p style="font-size:11px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;">Ses Seçimi</p>
+    <div style="display:flex;gap:8px;">
+      <button class="voice-btn active" id="voice_male_young" onclick="selectVoice(this,'FYPltOzsM2n1UbqzX19d')">👨 Erkek Genç</button>
+      <button class="voice-btn" id="voice_male_old" onclick="selectVoice(this,'WRjHw9UKGmcRAoOgyIzT')">👴 Erkek Yaşlı</button>
+      <button class="voice-btn" id="voice_female" onclick="selectVoice(this,'SAz9YHcvj6GT2YYXdXww')">👩 Kadın Genç</button>
+    </div>
+  </div>
   <div class="prog" id="prog">
     <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
     <div class="prog-text" id="progText">Hazırlanıyor...</div>
@@ -185,6 +196,13 @@ function initSpeech() {
 }
 
 let shouldRestore = true;
+let selectedVoiceId = 'FYPltOzsM2n1UbqzX19d';
+
+function selectVoice(btn, voiceId) {
+  selectedVoiceId = voiceId;
+  document.querySelectorAll('.voice-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
 
 function onPhoto(input, restore) {
   const file = input.files[0];
@@ -214,7 +232,7 @@ async function startSession() {
   const name = document.getElementById('personName').value.trim() || 'Sevgili';
   const rel = document.getElementById('relation').value.trim() || 'yakınınız';
   const ctx = document.getElementById('context').value.trim();
-  window._session = { name, rel, ctx };
+  window._session = { name, rel, ctx, voiceId: selectedVoiceId };
 
   document.getElementById('startBtn').disabled = true;
   document.getElementById('startBtn').textContent = 'Hazırlanıyor...';
@@ -398,6 +416,7 @@ async function processText(text) {
     formData.append('relation', s.rel || 'yakınınız');
     formData.append('context', s.ctx || '');
     formData.append('user_text', text);
+    formData.append('voice_id', s.voiceId || 'FYPltOzsM2n1UbqzX19d');
 
     const resp = await fetch(`${BACKEND}/api/chat/respond`, { method: 'POST', body: formData });
     if (resp.ok) {
