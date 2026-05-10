@@ -1726,7 +1726,7 @@ async def chat_prepare(request: Request):
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     "https://api.d-id.com/talks/streams",
-                    headers={"Content-Type": "application/json", "Authorization": f"Basic {base64.b64encode((did_key + ':').encode()).decode()}"},
+                    headers={"Content-Type": "application/json", "Authorization": f"Basic {did_key}"},
                     json={"source_url": f"data:image/jpeg;base64,{restored_b64}"},
                     timeout=30,
                 )
