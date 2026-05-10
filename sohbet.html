@@ -255,6 +255,9 @@ async function startSession() {
       if (data.stream_data) {
         streamId = data.stream_data.id;
         sessionId = data.stream_data.session_id;
+        window._didOffer = data.stream_data.offer;
+        window._iceServers = data.stream_data.ice_servers || [];
+        console.log('[D-ID] stream_data alındı, streamId:', streamId);
       }
       setProgress(70, 'Avatar hazırlanıyor...');
     } else {
@@ -292,19 +295,27 @@ async function startSession() {
 }
 
 async function connectDID() {
+  console.log('[D-ID] connectDID başlıyor, streamId:', streamId);
   try {
     const r = await fetch(`${BACKEND}/api/chat/did-token`, { method: 'POST' });
     const d = await r.json();
     didApiKey = d.token;
     const authHeader = "Basic " + didApiKey;
 
-    peerConnection = new RTCPeerConnection({ iceServers: [] });
+    // ICE servers stream_data'dan geldi
+    peerConnection = new RTCPeerConnection({ iceServers: window._iceServers || [] });
+
     peerConnection.ontrack = (e) => {
+      console.log('[D-ID] video stream geldi!');
       const vid = document.getElementById('avatarVideo');
       vid.srcObject = e.streams[0];
       vid.style.display = 'block';
       document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('statusText').textContent = 'Bağlandı ✓';
+      document.getElementById('micBtn').disabled = false;
+      addBubble('avatar', `Selam... Seni çok özledim.`);
     };
+
     peerConnection.onicecandidate = async ({ candidate }) => {
       if (candidate) {
         await fetch(`https://api.d-id.com/talks/streams/${streamId}/ice`, {
@@ -315,34 +326,38 @@ async function connectDID() {
       }
     };
 
-    const offerResp = await fetch(`https://api.d-id.com/talks/streams/${streamId}`, {
-      headers: { 'Authorization': authHeader }
-    });
-    const offerData = await offerResp.json();
-    await peerConnection.setRemoteDescription(offerData.offer);
+    peerConnection.oniceconnectionstatechange = () => {
+      console.log('[D-ID] ICE state:', peerConnection.iceConnectionState);
+    };
+
+    // Offer stream_data'dan geldi — tekrar fetch etme
+    const offer = window._didOffer;
+    console.log('[D-ID] offer type:', offer?.type);
+    await peerConnection.setRemoteDescription(offer);
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
 
-    await fetch(`https://api.d-id.com/talks/streams/${streamId}/sdp`, {
+    const sdpResp = await fetch(`https://api.d-id.com/talks/streams/${streamId}/sdp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
       body: JSON.stringify({ answer, session_id: sessionId })
     });
+    console.log('[D-ID] SDP response:', sdpResp.status);
 
     setProgress(100, 'Hazır!');
     await new Promise(r => setTimeout(r, 500));
     document.getElementById('setup').style.display = 'none';
     document.getElementById('avName').textContent = window._session.name;
     document.getElementById('avRel').textContent = window._session.rel;
-    document.getElementById('statusText').textContent = 'Bağlandı ✓';
-    document.getElementById('micBtn').disabled = false;
-    addBubble('avatar', `Selam... Seni çok özledim.`);
+    document.getElementById('statusText').textContent = 'Bağlanıyor...';
+
   } catch(e) {
-    console.error('D-ID:', e);
+    console.error('[D-ID] hata:', e);
     document.getElementById('setup').style.display = 'none';
     document.getElementById('statusText').textContent = 'Demo modda devam ediyor';
     document.getElementById('micBtn').disabled = false;
   }
+}
 }
 
 async function sendToDID(audioB64) {
