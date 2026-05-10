@@ -1745,6 +1745,86 @@ if DIST_DIR.is_dir():
 
     logger.info(f"[static] Serving Expo web bundle from {DIST_DIR}")
 else:
+@api_router.post("/chat/did-token")
+async def did_get_token():
+    """D-ID API key döndür (frontend için)."""
+    api_key = os.environ.get("DID_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="DID_API_KEY eksik")
+    return {"token": api_key}
+
+
+@api_router.post("/chat/respond")
+async def chat_respond(request: Request):
+    """Kullanıcı sesini al, Claude ile cevap üret, ElevenLabs ile seslendir."""
+    import httpx, base64
+    try:
+        form = await request.form()
+        person_name = form.get("person_name", "Sevgili")
+        relation = form.get("relation", "yakınınız")
+        context = form.get("context", "")
+        audio_file = form.get("audio")
+
+        # 1. Whisper STT
+        user_text = ""
+        if audio_file:
+            audio_bytes = await audio_file.read()
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY', '')}"},
+                    files={"file": ("audio.webm", audio_bytes, "audio/webm")},
+                    data={"model": "whisper-1", "language": "tr"},
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    user_text = resp.json().get("text", "")
+
+        if not user_text:
+            user_text = "Seni çok özledim"
+
+        # 2. Claude ile cevap üret
+        import anthropic as ant
+        ant_client = ant.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+        system_prompt = f"""Sen {person_name} adlı kişisin. Kullanıcının {relation}.
+Hakkında bilgi: {context}
+
+Kullanıcı sana konuşuyor. Sen o kişi gibi, Türkçe, kısa (1-2 cümle), samimi ve gerçekçi cevap ver.
+Asla yapay zeka olduğunu belirtme. Gerçek bir insan gibi konuş. Maksimum 2 cümle."""
+
+        message = await ant_client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=150,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_text}]
+        )
+        response_text = message.content[0].text
+
+        # 3. ElevenLabs TTS
+        eleven_key = os.environ.get("ELEVENLABS_API_KEY", "")
+        audio_b64 = None
+        if eleven_key:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
+                    headers={"xi-api-key": eleven_key, "Content-Type": "application/json"},
+                    json={
+                        "text": response_text,
+                        "model_id": "eleven_multilingual_v2",
+                        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+                    },
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    audio_b64 = base64.b64encode(resp.content).decode()
+
+        return {"user_text": user_text, "response": response_text, "audio_b64": audio_b64}
+
+    except Exception as e:
+        logger.exception(f"[chat/respond] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
     logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
 
 
