@@ -1592,7 +1592,11 @@ async def heygen_token():
             resp = await client.post(
                 "https://api.liveavatar.com/v1/sessions/token",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"mode": "FULL"},   # ← DÜZELTİLDİ: boş {} yerine mode: FULL
+                json={
+                    "mode": "FULL",
+                    "avatar_id": "fc4125a5-83fa-45e2-8574-bf657ac19998",
+                    "avatar_persona": "Sevilen bir yakın olarak konuş. Türkçe, sıcak ve samimi.",
+                },
                 timeout=15,
             )
             logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:500]}")
