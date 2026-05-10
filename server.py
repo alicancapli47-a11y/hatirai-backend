@@ -1745,6 +1745,90 @@ if DIST_DIR.is_dir():
 
     logger.info(f"[static] Serving Expo web bundle from {DIST_DIR}")
 else:
+    logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
+
+
+@api_router.post("/chat/prepare")
+async def chat_prepare(request: Request):
+    """Fotoğrafı restore et, D-ID için hazırla."""
+    import base64, httpx
+    try:
+        form = await request.form()
+        photo_file = form.get("photo")
+        era = form.get("era", "modern")
+
+        if not photo_file:
+            raise HTTPException(status_code=400, detail="Fotoğraf gerekli")
+
+        photo_bytes = await photo_file.read()
+        photo_b64 = base64.b64encode(photo_bytes).decode()
+
+        # Geçici photo_id oluştur
+        import uuid
+        photo_id = f"chat_{uuid.uuid4().hex[:8]}"
+
+        # Noir restore — mevcut pipeline'ı kullan
+        prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
+        image_bytes = base64.b64decode(photo_b64)
+        tmp_path = f"/tmp/chat_{photo_id}.jpg"
+        with open(tmp_path, "wb") as f:
+            f.write(image_bytes)
+
+        image_url = await fal_client.upload_file_async(tmp_path)
+
+        handle = await fal_client.submit_async(
+            "fal-ai/nano-banana-2/edit",
+            arguments={
+                "prompt": prompt,
+                "image_urls": [image_url],
+                "num_images": 1,
+                "aspect_ratio": "auto",
+                "output_format": "jpeg",
+                "resolution": "1K",
+                "safety_tolerance": "4",
+            },
+        )
+        result = await handle.get()
+
+        restored_b64 = None
+        if result.get("images"):
+            img_url = result["images"][0].get("url", "")
+            if img_url:
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(img_url, timeout=60)
+                    restored_b64 = base64.b64encode(r.content).decode()
+
+        if not restored_b64:
+            # Restore başarısız → orijinali kullan
+            restored_b64 = photo_b64
+
+        # D-ID stream oluştur
+        did_key = os.environ.get("DID_API_KEY", "")
+        stream_data = None
+        if did_key:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.d-id.com/talks/streams",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Basic {base64.b64encode((did_key + ':').encode()).decode()}"
+                    },
+                    json={"source_url": f"data:image/jpeg;base64,{restored_b64}"},
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    stream_data = resp.json()
+
+        return {
+            "restored_b64": restored_b64,
+            "stream_data": stream_data,
+        }
+
+    except Exception as e:
+        logger.exception(f"[chat/prepare] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @api_router.post("/chat/did-token")
 async def did_get_token():
     """D-ID API key döndür (frontend için)."""
