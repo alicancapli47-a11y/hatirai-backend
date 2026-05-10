@@ -1731,11 +1731,19 @@ async def chat_prepare(request: Request):
         stream_data = None
         logger.info(f"[chat/prepare] DID_API_KEY var mı: {bool(did_key)}, uzunluk: {len(did_key)}")
         if did_key:
+            # Fotoğrafı fal.ai'ye upload et, URL al
+            img_bytes = base64.b64decode(restored_b64)
+            tmp_did = f"/tmp/did_{photo_id}.jpg"
+            with open(tmp_did, "wb") as f:
+                f.write(img_bytes)
+            photo_url = await fal_client.upload_file_async(tmp_did)
+            logger.info(f"[chat/prepare] Fotoğraf URL: {photo_url}")
+
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     "https://api.d-id.com/talks/streams",
                     headers={"Content-Type": "application/json", "Authorization": f"Basic {did_key}"},
-                    json={"source_url": f"data:image/jpeg;base64,{restored_b64}"},
+                    json={"source_url": photo_url},
                     timeout=30,
                 )
                 logger.info(f"[chat/prepare] D-ID response: {resp.status_code} {resp.text[:200]}")
