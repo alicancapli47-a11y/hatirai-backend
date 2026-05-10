@@ -1774,6 +1774,7 @@ async def chat_respond(request: Request):
         relation = form.get("relation", "yakınınız")
         context = form.get("context", "")
         user_text = form.get("user_text", "") or "Seni çok özledim"
+        voice_id = form.get("voice_id", "FYPltOzsM2n1UbqzX19d")
 
         import anthropic as ant
         ant_client = ant.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
@@ -1795,7 +1796,7 @@ Asla yapay zeka olduğunu belirtme. Maksimum 2 cümle."""
         if eleven_key:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
-                    "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
                     headers={"xi-api-key": eleven_key, "Content-Type": "application/json"},
                     json={"text": response_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
                     timeout=30,
