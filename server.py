@@ -1678,6 +1678,30 @@ async def admin_all(_: str = Depends(require_admin)):
 
 
 # Mount router
+@api_router.post("/chat/heygen-token")
+async def heygen_token():
+    """HeyGen LiveAvatar token al."""
+    import httpx, base64
+    api_key = os.environ.get("LIVEAVATAR_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="LIVEAVATAR_API_KEY eksik")
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.heygen.com/v1/streaming.create_token",
+                headers={"x-api-key": api_key},
+                timeout=15,
+            )
+            logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:200]}")
+            if resp.status_code == 200:
+                data = resp.json()
+                return {"token": data.get("data", {}).get("token", "")}
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    except Exception as e:
+        logger.exception(f"[heygen-token] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @api_router.post("/chat/prepare")
 async def chat_prepare(request: Request):
     """Fotoğrafı restore et, D-ID için hazırla."""
