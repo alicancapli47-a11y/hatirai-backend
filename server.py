@@ -1678,9 +1678,123 @@ async def admin_all(_: str = Depends(require_admin)):
 
 
 # Mount router
+@api_router.post("/chat/prepare")
+async def chat_prepare(request: Request):
+    """Fotoğrafı restore et, D-ID için hazırla."""
+    import base64, httpx
+    try:
+        form = await request.form()
+        photo_file = form.get("photo")
+        era = form.get("era", "modern")
+
+        if not photo_file:
+            raise HTTPException(status_code=400, detail="Fotoğraf gerekli")
+
+        photo_bytes = await photo_file.read()
+        photo_b64 = base64.b64encode(photo_bytes).decode()
+
+        import uuid
+        photo_id = f"chat_{uuid.uuid4().hex[:8]}"
+
+        prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
+        image_bytes = base64.b64decode(photo_b64)
+        tmp_path = f"/tmp/chat_{photo_id}.jpg"
+        with open(tmp_path, "wb") as f:
+            f.write(image_bytes)
+
+        image_url = await fal_client.upload_file_async(tmp_path)
+        handle = await fal_client.submit_async(
+            "fal-ai/nano-banana-2/edit",
+            arguments={"prompt": prompt, "image_urls": [image_url], "num_images": 1, "aspect_ratio": "auto", "output_format": "jpeg", "resolution": "1K", "safety_tolerance": "4"},
+        )
+        result = await handle.get()
+
+        restored_b64 = None
+        if result.get("images"):
+            img_url = result["images"][0].get("url", "")
+            if img_url:
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(img_url, timeout=60)
+                    restored_b64 = base64.b64encode(r.content).decode()
+
+        if not restored_b64:
+            restored_b64 = photo_b64
+
+        did_key = os.environ.get("DID_API_KEY", "")
+        stream_data = None
+        if did_key:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.d-id.com/talks/streams",
+                    headers={"Content-Type": "application/json", "Authorization": f"Basic {base64.b64encode((did_key + ':').encode()).decode()}"},
+                    json={"source_url": f"data:image/jpeg;base64,{restored_b64}"},
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    stream_data = resp.json()
+
+        return {"restored_b64": restored_b64, "stream_data": stream_data}
+
+    except Exception as e:
+        logger.exception(f"[chat/prepare] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/chat/did-token")
+async def did_get_token():
+    api_key = os.environ.get("DID_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="DID_API_KEY eksik")
+    return {"token": api_key}
+
+
+@api_router.post("/chat/respond")
+async def chat_respond(request: Request):
+    import httpx, base64
+    try:
+        form = await request.form()
+        person_name = form.get("person_name", "Sevgili")
+        relation = form.get("relation", "yakınınız")
+        context = form.get("context", "")
+        user_text = form.get("user_text", "") or "Seni çok özledim"
+
+        import anthropic as ant
+        ant_client = ant.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+        system_prompt = f"""Sen {person_name} adlı kişisin. Kullanıcının {relation}.
+Hakkında bilgi: {context}
+Kullanıcı sana konuşuyor. Sen o kişi gibi, Türkçe, kısa (1-2 cümle), samimi cevap ver.
+Asla yapay zeka olduğunu belirtme. Maksimum 2 cümle."""
+
+        message = await ant_client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=150,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_text}]
+        )
+        response_text = message.content[0].text
+
+        eleven_key = os.environ.get("ELEVENLABS_API_KEY", "")
+        audio_b64 = None
+        if eleven_key:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
+                    headers={"xi-api-key": eleven_key, "Content-Type": "application/json"},
+                    json={"text": response_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    audio_b64 = base64.b64encode(resp.content).decode()
+
+        return {"user_text": user_text, "response": response_text, "audio_b64": audio_b64}
+
+    except Exception as e:
+        logger.exception(f"[chat/respond] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @api_router.get("/sohbet")
 async def sohbet_page():
-    """HatırAI sohbet sayfasını serve et."""
     from fastapi.responses import FileResponse
     sohbet_path = Path("/app/sohbet.html")
     if sohbet_path.exists():
@@ -1756,157 +1870,6 @@ if DIST_DIR.is_dir():
     logger.info(f"[static] Serving Expo web bundle from {DIST_DIR}")
 else:
     logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
-
-
-@api_router.post("/chat/prepare")
-async def chat_prepare(request: Request):
-    """Fotoğrafı restore et, D-ID için hazırla."""
-    import base64, httpx
-    try:
-        form = await request.form()
-        photo_file = form.get("photo")
-        era = form.get("era", "modern")
-
-        if not photo_file:
-            raise HTTPException(status_code=400, detail="Fotoğraf gerekli")
-
-        photo_bytes = await photo_file.read()
-        photo_b64 = base64.b64encode(photo_bytes).decode()
-
-        # Geçici photo_id oluştur
-        import uuid
-        photo_id = f"chat_{uuid.uuid4().hex[:8]}"
-
-        # Noir restore — mevcut pipeline'ı kullan
-        prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
-        image_bytes = base64.b64decode(photo_b64)
-        tmp_path = f"/tmp/chat_{photo_id}.jpg"
-        with open(tmp_path, "wb") as f:
-            f.write(image_bytes)
-
-        image_url = await fal_client.upload_file_async(tmp_path)
-
-        handle = await fal_client.submit_async(
-            "fal-ai/nano-banana-2/edit",
-            arguments={
-                "prompt": prompt,
-                "image_urls": [image_url],
-                "num_images": 1,
-                "aspect_ratio": "auto",
-                "output_format": "jpeg",
-                "resolution": "1K",
-                "safety_tolerance": "4",
-            },
-        )
-        result = await handle.get()
-
-        restored_b64 = None
-        if result.get("images"):
-            img_url = result["images"][0].get("url", "")
-            if img_url:
-                async with httpx.AsyncClient() as client:
-                    r = await client.get(img_url, timeout=60)
-                    restored_b64 = base64.b64encode(r.content).decode()
-
-        if not restored_b64:
-            # Restore başarısız → orijinali kullan
-            restored_b64 = photo_b64
-
-        # D-ID stream oluştur
-        did_key = os.environ.get("DID_API_KEY", "")
-        stream_data = None
-        if did_key:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    "https://api.d-id.com/talks/streams",
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Basic {base64.b64encode((did_key + ':').encode()).decode()}"
-                    },
-                    json={"source_url": f"data:image/jpeg;base64,{restored_b64}"},
-                    timeout=30,
-                )
-                if resp.status_code == 200:
-                    stream_data = resp.json()
-
-        return {
-            "restored_b64": restored_b64,
-            "stream_data": stream_data,
-        }
-
-    except Exception as e:
-        logger.exception(f"[chat/prepare] Hata: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@api_router.post("/chat/did-token")
-async def did_get_token():
-    """D-ID API key döndür (frontend için)."""
-    api_key = os.environ.get("DID_API_KEY", "")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="DID_API_KEY eksik")
-    return {"token": api_key}
-
-
-@api_router.post("/chat/respond")
-async def chat_respond(request: Request):
-    """Kullanıcı sesini al, Claude ile cevap üret, ElevenLabs ile seslendir."""
-    import httpx, base64
-    try:
-        form = await request.form()
-        person_name = form.get("person_name", "Sevgili")
-        relation = form.get("relation", "yakınınız")
-        context = form.get("context", "")
-        audio_file = form.get("audio")
-
-        # 1. Kullanıcı metni form'dan al (Web Speech API frontend'de çalışıyor)
-        user_text = form.get("user_text", "")
-        
-        if not user_text and audio_file:
-            # Fallback: ses dosyası varsa basit placeholder
-            user_text = "Seni çok özledim"
-
-        # 2. Claude ile cevap üret
-        import anthropic as ant
-        ant_client = ant.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-        system_prompt = f"""Sen {person_name} adlı kişisin. Kullanıcının {relation}.
-Hakkında bilgi: {context}
-
-Kullanıcı sana konuşuyor. Sen o kişi gibi, Türkçe, kısa (1-2 cümle), samimi ve gerçekçi cevap ver.
-Asla yapay zeka olduğunu belirtme. Gerçek bir insan gibi konuş. Maksimum 2 cümle."""
-
-        message = await ant_client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=150,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_text}]
-        )
-        response_text = message.content[0].text
-
-        # 3. ElevenLabs TTS
-        eleven_key = os.environ.get("ELEVENLABS_API_KEY", "")
-        audio_b64 = None
-        if eleven_key:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM",
-                    headers={"xi-api-key": eleven_key, "Content-Type": "application/json"},
-                    json={
-                        "text": response_text,
-                        "model_id": "eleven_multilingual_v2",
-                        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
-                    },
-                    timeout=30,
-                )
-                if resp.status_code == 200:
-                    audio_b64 = base64.b64encode(resp.content).decode()
-
-        return {"user_text": user_text, "response": response_text, "audio_b64": audio_b64}
-
-    except Exception as e:
-        logger.exception(f"[chat/respond] Hata: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 
     logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
 
