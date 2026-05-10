@@ -93,8 +93,13 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
   <p>Yakınınızla 1 dakikalık özel sohbet.<br>Ona söyleyemediklerinizi söyleyin.</p>
   <img class="photo-preview" id="photoPreview">
   <label class="photo-upload" id="photoLabel">
-    📷 Fotoğraf seç
-    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="onPhoto(this)">
+    📷 Fotoğraf seç + Restore et (kredi harcar)
+    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="onPhoto(this, true)">
+  </label>
+
+  <label class="photo-upload" id="avatarLabel" style="border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.5);">
+    ✨ Hazır avatar yükle (kredi harcamaz)
+    <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="onPhoto(this, false)">
   </label>
   <input class="inp" id="personName" placeholder="Yakınınızın adı (örn: Elif)" />
   <input class="inp" id="relation" placeholder="İlişkiniz (örn: annem, babam)" />
@@ -179,14 +184,22 @@ function initSpeech() {
   return true;
 }
 
-function onPhoto(input) {
+let shouldRestore = true;
+
+function onPhoto(input, restore) {
   const file = input.files[0];
   if (!file) return;
   photoFile = file;
+  shouldRestore = restore;
   const url = URL.createObjectURL(file);
   const prev = document.getElementById('photoPreview');
   prev.src = url; prev.style.display = 'block';
-  document.getElementById('photoLabel').textContent = '✅ ' + file.name;
+  document.getElementById('avCircle').innerHTML = `<img src="${url}">`;
+  if (restore) {
+    document.getElementById('photoLabel').textContent = '✅ ' + file.name + ' (restore edilecek)';
+  } else {
+    document.getElementById('avatarLabel').textContent = '✅ ' + file.name + ' (hazır avatar)';
+  }
   document.getElementById('startBtn').disabled = false;
   document.getElementById('startBtn').textContent = 'SOHBETE BAŞLA →';
 }
@@ -211,8 +224,9 @@ async function startSession() {
     const formData = new FormData();
     formData.append('photo', photoFile, 'photo.jpg');
     formData.append('era', 'modern');
+    formData.append('restore', shouldRestore ? '1' : '0');
 
-    setProgress(30, 'Fotoğraf restore ediliyor (siyah fon)...');
+    setProgress(30, shouldRestore ? 'Fotoğraf restore ediliyor...' : 'Avatar hazırlanıyor...');
     const resp = await fetch(`${BACKEND}/api/chat/prepare`, { method: 'POST', body: formData });
     
     if (resp.ok) {
