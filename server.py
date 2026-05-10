@@ -494,10 +494,6 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
     if user:
         job_doc["user_id"] = user["user_id"]
     await db.video_jobs.insert_one(job_doc)
-    # NOTE: Veo video generation is intentionally deferred until Iyzico payment
-    # completes (or dev-skip fires). This prevents wasted fal.ai credits on
-    # users who drop off before paying. See _finalize_job_by_token and
-    # payment_dev_skip below — they kick off _run_veo_pipeline on paid.
     logger.info(f"[memory/form] photo={body.photo_id} job={job.id} user={user.get('email') if user else 'anon'} → awaiting payment")
 
     return {"form": rec.model_dump(), "job_id": job.id}
@@ -526,7 +522,6 @@ def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
             tmp.write(f"file '{os.path.abspath(p)}'\n")
         tmp.flush(); tmp.close()
 
-        # Try to use a bundled font; fall back to DejaVuSans which ships with Debian.
         font_candidates = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -534,7 +529,6 @@ def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
         ]
         font_path = next((f for f in font_candidates if os.path.exists(f)), None)
 
-        # Bottom-right watermark: "HatırAI" with a subtle gold tint and soft box.
         if font_path:
             draw = (
                 f"drawtext=fontfile='{font_path}':text='HatırAI':"
@@ -584,8 +578,6 @@ async def _veo_clip(image_url: str, prompt: str) -> str:
 
 
 async def _run_veo_pipeline(job_id: str):
-    """Background task: build full prompt, run sequential Veo 3.1 clips,
-    concat with ffmpeg, upload via fal storage, update job."""
     workdir = tempfile.mkdtemp(prefix=f"veo-{job_id}-")
     try:
         await db.video_jobs.update_one({"id": job_id}, {"$set": {"status": "generating", "progress": 0}})
@@ -600,14 +592,12 @@ async def _run_veo_pipeline(job_id: str):
         form = await db.memory_forms.find_one({"photo_id": job["photo_id"]}, {"_id": 0}, sort=[("created_at", -1)])
         full_script = (form or {}).get("full_script") or "Merhaba, seni çok özledim."
 
-        # Upload starting frame to fal storage
         start_path = os.path.join(workdir, "start.png")
         with open(start_path, "wb") as f:
             f.write(_b64.b64decode(photo["noir_b64"]))
         ref_url = await fal_client.upload_file_async(start_path)
         logger.info(f"[veo {job_id}] start frame uploaded {ref_url}")
 
-        # Split script into NUM_CLIPS roughly equal parts by sentences
         sentences = [s.strip() for s in full_script.replace("…", ".").split(".") if s.strip()]
         per = max(1, len(sentences) // NUM_CLIPS)
         chunks = [". ".join(sentences[i*per:(i+1)*per]) + "." for i in range(NUM_CLIPS - 1)]
@@ -668,7 +658,6 @@ async def _run_veo_pipeline(job_id: str):
                 await asyncio.to_thread(_ffmpeg_last_frame, clip_local, next_frame)
                 current_ref = await fal_client.upload_file_async(next_frame)
 
-        # Concat
         final_local = os.path.join(workdir, "final.mp4")
         await asyncio.to_thread(_ffmpeg_concat, clip_paths, final_local)
         final_url = await fal_client.upload_file_async(final_local)
@@ -703,18 +692,12 @@ async def request_video(body: VideoRequestBody):
 
 @api_router.post("/payment/dev-skip/{job_id}", response_model=VideoJobPublic)
 async def payment_dev_skip(job_id: str):
-    """TEST-ONLY: skip Iyzico entirely, mark job paid.
-    In the new post-paywall flow, Veo video generation only starts AFTER
-    payment — so dev-skip also has to kick off the pipeline (unless a
-    video is already generated from a previous run). Refuses to run if
-    IYZICO_MODE == 'production'."""
     if IYZICO_MODE == "production":
         raise HTTPException(status_code=403, detail="Dev-skip is disabled in production")
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="İş bulunamadı")
 
-    # Idempotent: if already paid, just echo state.
     if job.get("payment_status") == "paid":
         return VideoJobPublic(
             id=job_id, status=job.get("status", "generating"),
@@ -722,7 +705,6 @@ async def payment_dev_skip(job_id: str):
             kind=job.get("kind", "video"), progress=int(job.get("progress") or 0),
         )
 
-    # Require that the cinematic photo is ready — Veo cannot start otherwise.
     photo = await db.photos.find_one({"id": job["photo_id"]}, {"_id": 0})
     if not photo or not photo.get("noir_b64"):
         raise HTTPException(status_code=400, detail="Fotoğraf hazır değil")
@@ -755,9 +737,6 @@ async def payment_dev_skip(job_id: str):
 
 @api_router.post("/payment/initiate")
 async def payment_initiate(body: PaymentInitiateBody, request: Request):
-    """Create an Iyzico hosted Checkout Form session for this job.
-    Returns the `payment_page_url` (open in browser/WebView) and our `callback_return`
-    URL (where client polls status after the user returns)."""
     job = await db.video_jobs.find_one({"id": body.job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="İş bulunamadı")
@@ -771,10 +750,6 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
     conversation_id = str(uuid.uuid4())
     buyer_ip = (request.client.host if request.client else None) or "85.34.78.112"
 
-    # Derive callback URL dynamically from incoming request so the SAME backend
-    # works for preview, deployed, and local dev without env reconfiguration.
-    # Kubernetes ingress sets X-Forwarded-Proto / X-Forwarded-Host; fall back
-    # to request.url and finally PUBLIC_BACKEND_URL env var.
     fwd_proto = request.headers.get("x-forwarded-proto")
     fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
     if fwd_host:
@@ -866,7 +841,6 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
 
 
 async def _finalize_job_by_token(token: str) -> Optional[dict]:
-    """Verify a checkout token with Iyzico and mark job paid if successful."""
     if not token:
         return None
     try:
@@ -889,7 +863,6 @@ async def _finalize_job_by_token(token: str) -> Optional[dict]:
             )
         return data
 
-    # Success — find job and deliver content
     job = await db.video_jobs.find_one({"iyzico_token": token}, {"_id": 0})
     if not job:
         logger.error("[iyzico] job not found for token")
@@ -907,7 +880,6 @@ async def _finalize_job_by_token(token: str) -> Optional[dict]:
             "iyzico_paid_price": data.get("paidPrice"),
         }},
     )
-    # Video generation is deferred until payment — kick it off NOW.
     already_ready = job.get("status") == "ready" and job.get("media_url")
     if not already_ready:
         asyncio.create_task(_run_veo_pipeline(job["id"]))
@@ -919,9 +891,6 @@ async def _finalize_job_by_token(token: str) -> Optional[dict]:
 
 @api_router.post("/payment/callback")
 async def payment_callback_post(request: Request):
-    """Iyzico POSTs to this URL after the user finishes the payment form.
-    Form-encoded body with `token`. We verify, mark paid, and return a tiny HTML
-    that the front-end polls via /api/video/{job_id}."""
     form = await request.form()
     token = form.get("token")
     result = await _finalize_job_by_token(token) if token else None
@@ -956,7 +925,6 @@ async def payment_callback_post(request: Request):
 
 @api_router.get("/payment/callback")
 async def payment_callback_get(token: Optional[str] = None):
-    """Some Iyzico redirects come in as GET with token as query param."""
     result = await _finalize_job_by_token(token) if token else None
     ok = bool(result and result.get("paymentStatus") == "SUCCESS")
     color = "#C9A961" if ok else "#E59A9A"
@@ -971,15 +939,12 @@ async def payment_callback_get(token: Optional[str] = None):
 
 @api_router.post("/payment/webhook")
 async def payment_webhook(request: Request):
-    """Iyzico webhook — server-side confirmation. Verifies signature
-    and finalizes the job if we missed the callback."""
     body = await request.body()
     try:
         payload = _json.loads(body.decode("utf-8")) if body else {}
     except Exception:
         raise HTTPException(status_code=400, detail="Bad JSON")
 
-    # Iyzico v3 signature: HMAC-SHA256(secret, secret + iyziEventType + paymentId + paymentConversationId + status)
     sig_header = request.headers.get("X-IYZ-SIGNATURE-V3", "")
     secret = IYZICO_OPTIONS["secret_key"]
     ev = payload.get("iyziEventType", "")
@@ -1001,7 +966,6 @@ async def payment_webhook(request: Request):
     except Exception:
         logger.exception("[iyzico-webhook] signature check error")
 
-    # Finalize by conversation_id if we have the job
     job = await db.video_jobs.find_one({"iyzico_conversation_id": cid}, {"_id": 0})
     if job and st == "SUCCESS":
         token = job.get("iyzico_token")
@@ -1011,7 +975,6 @@ async def payment_webhook(request: Request):
 
 @api_router.get("/video/{job_id}", response_model=VideoJobPublic)
 async def get_video(job_id: str):
-    """Client polls this after payment to receive media_url."""
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="İş bulunamadı")
@@ -1025,7 +988,7 @@ async def get_video(job_id: str):
     )
 
 
-# ---------- User Auth (Emergent Google OAuth) ----------
+# ---------- User Auth ----------
 EMERGENT_AUTH_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 
 
@@ -1042,13 +1005,11 @@ class EmailLoginBody(BaseModel):
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
-# Bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Rate limiting — IP başına login denemesi
 _login_attempts: dict = defaultdict(list)
-_RATE_LIMIT_MAX = 10  # 10 deneme
-_RATE_LIMIT_WINDOW = 300  # 5 dakika
+_RATE_LIMIT_MAX = 10
+_RATE_LIMIT_WINDOW = 300
 
 def _check_rate_limit(ip: str):
     now = time.time()
@@ -1115,7 +1076,6 @@ async def forgot_password(body: ForgotPasswordBody):
 
 @api_router.post("/auth/reset-password")
 async def reset_password(body: ResetPasswordBody):
-    import hashlib
     record = await db.password_resets.find_one({"token": body.token, "used": False})
     if not record:
         raise HTTPException(status_code=400, detail="Geçersiz veya süresi dolmuş link.")
@@ -1151,7 +1111,6 @@ async def auth_register(body: EmailRegisterBody, request: Request):
         "user_id": user_id, "session_token": session_token,
         "expires_at": expires, "created_at": datetime.now(timezone.utc),
     })
-    # Hoşgeldin maili gönder
     if RESEND_API_KEY:
         try:
             import httpx
@@ -1215,38 +1174,8 @@ class AuthSessionBody(BaseModel):
     session_id: str
 
 
-async def current_user(authorization: Optional[str] = Header(None)) -> Optional[dict]:
-    """Optional user: extracts Bearer <session_token> if present; returns user dict or None."""
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.split(" ", 1)[1]
-    # admin JWTs are also "Bearer"; keep them separate
-    if token.count(".") == 2:  # looks like JWT — skip
-        return None
-    sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-    if not sess:
-        return None
-    exp = sess.get("expires_at")
-    if isinstance(exp, str):
-        try: exp = datetime.fromisoformat(exp)
-        except Exception: exp = None
-    if exp and exp.tzinfo is None:
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp and exp < datetime.now(timezone.utc):
-        return None
-    user = await db.users.find_one({"user_id": sess["user_id"]}, {"_id": 0})
-    return user
-
-
-async def require_user(user: Optional[dict] = Depends(current_user)) -> dict:
-    if not user:
-        raise HTTPException(status_code=401, detail="Giriş gerekli")
-    return user
-
-
 @api_router.post("/auth/session")
 async def auth_session(body: AuthSessionBody):
-    """Exchange Emergent OAuth session_id for our own session_token + user."""
     try:
         r = _requests.get(
             EMERGENT_AUTH_SESSION_URL,
@@ -1265,7 +1194,6 @@ async def auth_session(body: AuthSessionBody):
     if not email:
         raise HTTPException(status_code=401, detail="Email alınamadı")
 
-    # Upsert user
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
         user_id = existing["user_id"]
@@ -1280,7 +1208,6 @@ async def auth_session(body: AuthSessionBody):
             "picture": picture, "created_at": datetime.now(timezone.utc),
         })
 
-    # Create session (7 days)
     expires = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.insert_one({
         "user_id": user_id, "session_token": session_token,
@@ -1343,11 +1270,8 @@ async def user_history(user: dict = Depends(require_user)):
     return result
 
 
-# ---------- End User Auth ----------
-
 @api_router.post("/payment/lemonsqueezy-init")
 async def lemonsqueezy_init(request: Request):
-    """Lemon Squeezy checkout URL oluştur."""
     import httpx
     try:
         body = await request.json()
@@ -1366,7 +1290,6 @@ async def lemonsqueezy_init(request: Request):
         variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID", "")
         store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
 
-        # Lemon Squeezy checkout oluştur
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 "https://api.lemonsqueezy.com/v1/checkouts",
@@ -1414,12 +1337,9 @@ async def lemonsqueezy_init(request: Request):
 
 @api_router.post("/payment/lemonsqueezy-webhook")
 async def lemonsqueezy_webhook(request: Request):
-    """Lemon Squeezy order_created webhook."""
     import hmac, hashlib
     try:
         body = await request.body()
-        
-        # İmza doğrulama
         secret = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
         signature = request.headers.get("X-Signature", "")
         if secret:
@@ -1439,22 +1359,19 @@ async def lemonsqueezy_webhook(request: Request):
         if event != "order_created":
             return {"status": "ignored"}
 
-        # Order verisi
         order = data.get("data", {})
         attrs = order.get("attributes", {})
         status = attrs.get("status", "")
-        
+
         if status != "paid":
             logger.warning(f"[lemonsqueezy] Ödeme durumu: {status}")
             return {"status": "ignored"}
 
-        # job_id custom data'dan al
         meta = data.get("meta", {})
         custom_data = meta.get("custom_data", {})
         job_id = custom_data.get("job_id", "")
 
         if not job_id:
-            # order notes'tan da dene
             job_id = attrs.get("notes", "")
 
         logger.info(f"[lemonsqueezy] job_id={job_id} status={status}")
@@ -1494,7 +1411,6 @@ async def lemonsqueezy_webhook(request: Request):
 
 @api_router.post("/payment/shopier-init")
 async def shopier_init(request: Request):
-    """Shopier ödeme formu oluştur ve kullanıcıyı yönlendir."""
     import hashlib, hmac, time
     try:
         body = await request.json()
@@ -1512,10 +1428,8 @@ async def shopier_init(request: Request):
         api_key = os.environ.get("SHOPIER_API_KEY", "")
         api_secret = os.environ.get("SHOPIER_API_SECRET", "")
 
-        # Shopier için random number
         random_nr = str(int(time.time()))
 
-        # İmza oluştur
         data = random_nr + job_id + "100.00" + "0"
         signature = hmac.new(
             api_secret.encode('utf-8'),
@@ -1525,7 +1439,6 @@ async def shopier_init(request: Request):
 
         callback_url = f"{PUBLIC_BACKEND_URL}/api/payment/shopier-callback?job_id={job_id}"
 
-        # Shopier form parametreleri
         params = {
             "API_key": api_key,
             "website_index": "1",
@@ -1562,7 +1475,6 @@ async def shopier_init(request: Request):
 
 @api_router.get("/payment/shopier-callback")
 async def shopier_callback(job_id: str, request: Request):
-    """Shopier ödeme sonrası geri dönüş."""
     params = dict(request.query_params)
     status = params.get("status", "")
     logger.info(f"[shopier-callback] job_id={job_id} status={status} params={params}")
@@ -1577,7 +1489,6 @@ async def shopier_callback(job_id: str, request: Request):
             asyncio.create_task(_run_veo_pipeline(job_id))
             logger.info(f"[shopier-callback] ✅ Video başlatıldı: {job_id}")
 
-    # Kullanıcıyı result sayfasına yönlendir
     photo_id = ""
     if job_id:
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
@@ -1592,24 +1503,17 @@ async def shopier_callback(job_id: str, request: Request):
 
 @api_router.post("/payment/shopier-osb")
 async def shopier_osb(request: Request):
-    """Shopier Otomatik Sipariş Bildirimi (OSB) webhook endpoint."""
     import hmac, hashlib
     try:
         body = await request.body()
         data = {}
-        # Form data olarak parse et
         form = await request.form()
         for key, value in form.items():
             data[key] = value
 
         logger.info(f"[shopier-osb] data={data}")
 
-        # OSB şifresi ile doğrulama
-        osb_user = os.environ.get("SHOPIER_OSB_USER", "")
-        osb_pass = os.environ.get("SHOPIER_OSB_PASS", "")
-
-        # Shopier'den gelen sipariş bilgileri
-        order_id = data.get("BILL_ORDER_ID", "")  # job_id burada
+        order_id = data.get("BILL_ORDER_ID", "")
         payment_status = data.get("STATUS", "")
         platform_order_id = data.get("PLATFORM_ORDER_ID", "")
 
@@ -1619,7 +1523,6 @@ async def shopier_osb(request: Request):
             logger.warning(f"[shopier-osb] Ödeme başarısız: {payment_status}")
             return {"status": "ignored"}
 
-        # job_id'yi bul — order_id veya platform_order_id'den
         job_id = order_id or platform_order_id
         if not job_id:
             logger.error("[shopier-osb] job_id bulunamadı")
@@ -1627,7 +1530,6 @@ async def shopier_osb(request: Request):
 
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
         if not job:
-            # order_id ile arama
             job = await db.video_jobs.find_one({"shopier_order_id": job_id}, {"_id": 0})
 
         if not job:
@@ -1638,7 +1540,6 @@ async def shopier_osb(request: Request):
             logger.info(f"[shopier-osb] Zaten ödendi: {job_id}")
             return {"status": "already_paid"}
 
-        # Ödeme işle
         await db.video_jobs.update_one(
             {"id": job["id"]},
             {"$set": {
@@ -1677,7 +1578,8 @@ async def admin_all(_: str = Depends(require_admin)):
     return [VideoJob(**i) for i in items]
 
 
-# Mount router
+# ===================== CHAT / LIVEAVATAR =====================
+
 @api_router.post("/chat/heygen-token")
 async def heygen_token():
     """LiveAvatar session token al."""
@@ -1690,7 +1592,7 @@ async def heygen_token():
             resp = await client.post(
                 "https://api.liveavatar.com/v1/sessions/token",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={},
+                json={"mode": "FULL"},   # ← DÜZELTİLDİ: boş {} yerine mode: FULL
                 timeout=15,
             )
             logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:500]}")
@@ -1699,6 +1601,8 @@ async def heygen_token():
                 token = data.get("data", {}).get("session_token", "") or data.get("token", "")
                 return {"token": token}
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"[heygen-token] Hata: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1724,7 +1628,6 @@ async def chat_prepare(request: Request):
         photo_id = f"chat_{uuid.uuid4().hex[:8]}"
 
         if should_restore:
-            # Fal.ai ile restore et
             prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
             image_bytes = base64.b64decode(photo_b64)
             tmp_path = f"/tmp/chat_{photo_id}.jpg"
@@ -1749,7 +1652,6 @@ async def chat_prepare(request: Request):
             if not restored_b64:
                 restored_b64 = photo_b64
         else:
-            # Direkt kullan, restore etme
             restored_b64 = photo_b64
             logger.info(f"[chat/prepare] Restore atlandı, hazır avatar kullanılıyor")
 
@@ -1757,7 +1659,6 @@ async def chat_prepare(request: Request):
         stream_data = None
         logger.info(f"[chat/prepare] DID_API_KEY var mı: {bool(did_key)}, uzunluk: {len(did_key)}")
         if did_key:
-            # Fotoğrafı fal.ai'ye upload et, URL al
             img_bytes = base64.b64decode(restored_b64)
             tmp_did = f"/tmp/did_{photo_id}.jpg"
             with open(tmp_did, "wb") as f:
@@ -1846,6 +1747,7 @@ async def sohbet_page():
     raise HTTPException(status_code=404, detail="Sohbet sayfası bulunamadı")
 
 
+# ===================== APP MOUNT =====================
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1856,19 +1758,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------------------------------------------------------
-# Expo web static bundle — serves the frontend when running as a single-pod
-# deployment (e.g. Emergent production). Harmless in preview because the
-# Emergent preview ingress routes / to the Expo dev server (port 3000) and
-# only hits the backend for /api/*, so this catch-all is never exercised.
-#
-# Requires `npx expo export -p web` to have been run (produces dist/).
-# If dist/ is missing, the handlers gracefully fall back to 404.
-# ---------------------------------------------------------------------------
 DIST_DIR = Path("/app/frontend/dist")
 
 if DIST_DIR.is_dir():
-    # Static asset folders produced by expo export.
     for sub in ("_expo", "assets"):
         sub_path = DIST_DIR / sub
         if sub_path.is_dir():
@@ -1883,38 +1775,25 @@ if DIST_DIR.is_dir():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        """Serve Expo Router's per-route HTML files; fall back to index.html."""
-        # Never intercept /api/* (registered above; FastAPI matches in order).
         if full_path.startswith("api/") or full_path.startswith("api"):
             raise HTTPException(status_code=404)
-
-        # Direct file hit (css/js/images inside dist/)
         direct = DIST_DIR / full_path
         if direct.is_file():
             return FileResponse(direct)
-
-        # Per-route HTML produced by expo export
         if full_path:
             html = DIST_DIR / f"{full_path}.html"
             if html.is_file():
                 return FileResponse(html)
-
-        # Root
         index = DIST_DIR / "index.html"
         if index.is_file():
             return FileResponse(index)
-
-        # Expo's generated not-found page
         not_found = DIST_DIR / "+not-found.html"
         if not_found.is_file():
             return FileResponse(not_found, status_code=404)
-
         raise HTTPException(status_code=404)
 
     logger.info(f"[static] Serving Expo web bundle from {DIST_DIR}")
 else:
-    logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
-
     logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
 
 
