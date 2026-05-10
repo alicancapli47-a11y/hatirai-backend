@@ -1678,6 +1678,16 @@ async def admin_all(_: str = Depends(require_admin)):
 
 
 # Mount router
+@api_router.get("/sohbet")
+async def sohbet_page():
+    """HatırAI sohbet sayfasını serve et."""
+    from fastapi.responses import FileResponse
+    sohbet_path = Path("/app/sohbet.html")
+    if sohbet_path.exists():
+        return FileResponse(sohbet_path)
+    raise HTTPException(status_code=404, detail="Sohbet sayfası bulunamadı")
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1746,16 +1756,6 @@ if DIST_DIR.is_dir():
     logger.info(f"[static] Serving Expo web bundle from {DIST_DIR}")
 else:
     logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
-
-
-@api_router.get("/sohbet")
-async def sohbet_page():
-    """HatırAI sohbet sayfasını serve et."""
-    from fastapi.responses import FileResponse
-    sohbet_path = Path("/app/sohbet.html")
-    if sohbet_path.exists():
-        return FileResponse(sohbet_path)
-    raise HTTPException(status_code=404, detail="Sohbet sayfası bulunamadı")
 
 
 @api_router.post("/chat/prepare")
