@@ -449,18 +449,18 @@ def _build_full_script(name: str, ai_sentence: str) -> str:
     import random
     OPENINGS = [
         f"Selam {name}.",
-        f"{name}, seni görünce ne kadar özlediğimi anladım.",
-        f"Merhaba {name}.",
+        f"{name}, seni çok özledim.",
+        f"Merhaba {name}, ne kadar büyüdün.",
     ]
     MIDDLES = [
-        "Biliyorum beni çok özledin, ama ben de seni çok özledim.",
         "Her gün aklımdasın, bunu bil.",
         "Seni düşünmeden tek bir gün geçmiyor.",
+        "Seni her zaman yanımda hissediyorum.",
     ]
     CLOSINGS = [
         f"Seni çok seviyorum {name}. Kendine iyi bak.",
-        f"Her zaman kalbimdesin {name}.",
-        f"Seni seviyorum {name}. Güçlü ol.",
+        f"Her zaman kalbimdesin {name}. Güçlü ol.",
+        f"Umuyorum ki bir gün yeniden görüşürüz {name}. Seni seviyorum.",
     ]
     return (
         f"{random.choice(OPENINGS)} {ai_sentence}. "
