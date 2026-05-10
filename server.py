@@ -1345,6 +1345,251 @@ async def user_history(user: dict = Depends(require_user)):
 
 # ---------- End User Auth ----------
 
+@api_router.post("/payment/lemonsqueezy-init")
+async def lemonsqueezy_init(request: Request):
+    """Lemon Squeezy checkout URL oluştur."""
+    import httpx
+    try:
+        body = await request.json()
+        job_id = body.get("job_id")
+        if not job_id:
+            raise HTTPException(status_code=400, detail="job_id gerekli")
+
+        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            raise HTTPException(status_code=404, detail="Job bulunamadı")
+
+        if job.get("payment_status") == "paid":
+            raise HTTPException(status_code=400, detail="Zaten ödendi")
+
+        api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+        variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID", "")
+        store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
+
+        # Lemon Squeezy checkout oluştur
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.lemonsqueezy.com/v1/checkouts",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/vnd.api+json",
+                    "Accept": "application/vnd.api+json",
+                },
+                json={
+                    "data": {
+                        "type": "checkouts",
+                        "attributes": {
+                            "checkout_data": {
+                                "custom": {
+                                    "job_id": job_id,
+                                }
+                            },
+                            "product_options": {
+                                "redirect_url": f"{PUBLIC_BACKEND_URL}/result?id={job.get('photo_id', '')}&job={job_id}",
+                            }
+                        },
+                        "relationships": {
+                            "store": {
+                                "data": {"type": "stores", "id": store_id}
+                            },
+                            "variant": {
+                                "data": {"type": "variants", "id": variant_id}
+                            }
+                        }
+                    }
+                }
+            )
+            resp.raise_for_status()
+            checkout = resp.json()
+            checkout_url = checkout["data"]["attributes"]["url"]
+            logger.info(f"[lemonsqueezy-init] checkout_url={checkout_url} job_id={job_id}")
+            return {"checkout_url": checkout_url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[lemonsqueezy-init] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/payment/lemonsqueezy-webhook")
+async def lemonsqueezy_webhook(request: Request):
+    """Lemon Squeezy order_created webhook."""
+    import hmac, hashlib
+    try:
+        body = await request.body()
+        
+        # İmza doğrulama
+        secret = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
+        signature = request.headers.get("X-Signature", "")
+        if secret:
+            expected = hmac.new(
+                secret.encode("utf-8"),
+                body,
+                hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(expected, signature):
+                logger.warning("[lemonsqueezy] İmza doğrulaması başarısız")
+                raise HTTPException(status_code=401, detail="Invalid signature")
+
+        data = await request.json()
+        logger.info(f"[lemonsqueezy] webhook geldi: {data.get('meta', {}).get('event_name')}")
+
+        event = data.get("meta", {}).get("event_name", "")
+        if event != "order_created":
+            return {"status": "ignored"}
+
+        # Order verisi
+        order = data.get("data", {})
+        attrs = order.get("attributes", {})
+        status = attrs.get("status", "")
+        
+        if status != "paid":
+            logger.warning(f"[lemonsqueezy] Ödeme durumu: {status}")
+            return {"status": "ignored"}
+
+        # job_id custom data'dan al
+        meta = data.get("meta", {})
+        custom_data = meta.get("custom_data", {})
+        job_id = custom_data.get("job_id", "")
+
+        if not job_id:
+            # order notes'tan da dene
+            job_id = attrs.get("notes", "")
+
+        logger.info(f"[lemonsqueezy] job_id={job_id} status={status}")
+
+        if not job_id:
+            logger.error("[lemonsqueezy] job_id bulunamadı")
+            return {"status": "error", "detail": "job_id missing"}
+
+        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            logger.error(f"[lemonsqueezy] Job bulunamadı: {job_id}")
+            return {"status": "error", "detail": "job not found"}
+
+        if job.get("payment_status") == "paid":
+            logger.info(f"[lemonsqueezy] Zaten ödendi: {job_id}")
+            return {"status": "already_paid"}
+
+        await db.video_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "payment_status": "paid",
+                "lemonsqueezy_order_id": order.get("id"),
+                "paid_at": datetime.now(timezone.utc),
+            }}
+        )
+
+        asyncio.create_task(_run_veo_pipeline(job_id))
+        logger.info(f"[lemonsqueezy] ✅ Ödeme işlendi, veo başlatıldı: {job_id}")
+        return {"status": "ok"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[lemonsqueezy] Hata: {e}")
+        return {"status": "error", "detail": str(e)}
+
+
+@api_router.post("/payment/shopier-init")
+async def shopier_init(request: Request):
+    """Shopier ödeme formu oluştur ve kullanıcıyı yönlendir."""
+    import hashlib, hmac, time
+    try:
+        body = await request.json()
+        job_id = body.get("job_id")
+        if not job_id:
+            raise HTTPException(status_code=400, detail="job_id gerekli")
+
+        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            raise HTTPException(status_code=404, detail="Job bulunamadı")
+
+        if job.get("payment_status") == "paid":
+            raise HTTPException(status_code=400, detail="Zaten ödendi")
+
+        api_key = os.environ.get("SHOPIER_API_KEY", "")
+        api_secret = os.environ.get("SHOPIER_API_SECRET", "")
+
+        # Shopier için random number
+        random_nr = str(int(time.time()))
+
+        # İmza oluştur
+        data = random_nr + job_id + "100.00" + "0"
+        signature = hmac.new(
+            api_secret.encode('utf-8'),
+            data.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+
+        callback_url = f"{PUBLIC_BACKEND_URL}/api/payment/shopier-callback?job_id={job_id}"
+
+        # Shopier form parametreleri
+        params = {
+            "API_key": api_key,
+            "website_index": "1",
+            "platform_order_id": job_id,
+            "product_name": "HatırAI Sinematik Video",
+            "product_type": "2",
+            "buyer_name": "Müşteri",
+            "buyer_surname": "",
+            "buyer_email": "musteri@hatirai.com",
+            "buyer_phone": "5000000000",
+            "buyer_address": "İstanbul",
+            "buyer_city": "İstanbul",
+            "buyer_country": "Turkey",
+            "buyer_postcode": "34000",
+            "shipping_address": "İstanbul",
+            "shipping_city": "İstanbul",
+            "shipping_country": "Turkey",
+            "shipping_postcode": "34000",
+            "total_order_value": "100.00",
+            "currency": "0",
+            "random_nr": random_nr,
+            "signature": signature,
+            "callback": callback_url,
+        }
+
+        return {"params": params, "action": "https://www.shopier.com/ShowProduct/api_pay4.php"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[shopier-init] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/payment/shopier-callback")
+async def shopier_callback(job_id: str, request: Request):
+    """Shopier ödeme sonrası geri dönüş."""
+    params = dict(request.query_params)
+    status = params.get("status", "")
+    logger.info(f"[shopier-callback] job_id={job_id} status={status} params={params}")
+
+    if status == "success":
+        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+        if job and job.get("payment_status") != "paid":
+            await db.video_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc)}}
+            )
+            asyncio.create_task(_run_veo_pipeline(job_id))
+            logger.info(f"[shopier-callback] ✅ Video başlatıldı: {job_id}")
+
+    # Kullanıcıyı result sayfasına yönlendir
+    photo_id = ""
+    if job_id:
+        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+        if job:
+            photo_id = job.get("photo_id", "")
+
+    return RedirectResponse(
+        url=f"{PUBLIC_BACKEND_URL}/result?id={photo_id}&job={job_id}",
+        status_code=302
+    )
+
+
 @api_router.post("/payment/shopier-osb")
 async def shopier_osb(request: Request):
     """Shopier Otomatik Sipariş Bildirimi (OSB) webhook endpoint."""
