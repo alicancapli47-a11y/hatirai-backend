@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HatırAI · Canlı Sohbet</title>
+<script src="https://cdn.jsdelivr.net/npm/@heygen/streaming-avatar@latest/dist/streaming-avatar.umd.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; height:100vh; overflow:hidden; position:relative; }
@@ -34,23 +35,13 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
 .wb:nth-child(1){height:8px;animation-delay:0s}.wb:nth-child(2){height:20px;animation-delay:.1s}.wb:nth-child(3){height:14px;animation-delay:.2s}.wb:nth-child(4){height:26px;animation-delay:.3s}.wb:nth-child(5){height:16px;animation-delay:.4s}.wb:nth-child(6){height:10px;animation-delay:.5s}.wb:nth-child(7){height:22px;animation-delay:.6s}
 @keyframes wa{0%,100%{transform:scaleY(.3);opacity:.4}50%{transform:scaleY(1);opacity:1}}
 
-.transcript {
-  position:absolute; bottom:160px; left:50%; transform:translateX(-50%);
-  display:flex; flex-direction:column; gap:6px; width:85%; max-width:380px; z-index:15;
-}
-.bubble {
-  padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5;
-  opacity:0; animation:fadeIn .3s forwards;
-}
+.transcript { position:absolute; bottom:160px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; width:85%; max-width:380px; z-index:15; }
+.bubble { padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; opacity:0; animation:fadeIn .3s forwards; }
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .bubble.user { background:rgba(255,255,255,.1); align-self:flex-end; color:rgba(255,255,255,.8); border-bottom-right-radius:3px; }
 .bubble.avatar { background:rgba(200,169,110,.15); border:0.5px solid rgba(200,169,110,.3); align-self:flex-start; color:rgba(255,255,255,.9); border-bottom-left-radius:3px; }
-.bubble.typing { font-style:italic; color:rgba(255,255,255,.4); }
 
-.listening-indicator {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  display:none; flex-direction:column; align-items:center; gap:12px; z-index:25;
-}
+.listening-indicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:12px; z-index:25; }
 .listening-indicator.on { display:flex; }
 .listen-wave { display:flex; gap:5px; align-items:center; }
 .lw { width:4px; border-radius:2px; background:#fff; animation:lwa .6s ease-in-out infinite; }
@@ -95,24 +86,18 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
   <p>Yakınınızla 1 dakikalık özel sohbet.<br>Ona söyleyemediklerinizi söyleyin.</p>
   <img class="photo-preview" id="photoPreview">
   <label class="photo-upload" id="photoLabel">
-    📷 Fotoğraf seç + Restore et (kredi harcar)
-    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="onPhoto(this, true)">
-  </label>
-
-  <label class="photo-upload" id="avatarLabel" style="border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.5);">
-    ✨ Hazır avatar yükle (kredi harcamaz)
-    <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="onPhoto(this, false)">
+    📷 Fotoğraf seç
+    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="onPhoto(this)">
   </label>
   <input class="inp" id="personName" placeholder="Yakınınızın adı (örn: Elif)" />
   <input class="inp" id="relation" placeholder="İlişkiniz (örn: annem, babam)" />
   <textarea class="inp" id="context" placeholder="Kısaca ondan bahsedin..." rows="2" style="resize:none"></textarea>
-
   <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;">
     <p style="font-size:11px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;">Ses Seçimi</p>
     <div style="display:flex;gap:8px;">
-      <button class="voice-btn active" id="voice_male_young" onclick="selectVoice(this,'FYPltOzsM2n1UbqzX19d')">👨 Erkek Genç</button>
-      <button class="voice-btn" id="voice_male_old" onclick="selectVoice(this,'WRjHw9UKGmcRAoOgyIzT')">👴 Erkek Yaşlı</button>
-      <button class="voice-btn" id="voice_female" onclick="selectVoice(this,'SAz9YHcvj6GT2YYXdXww')">👩 Kadın Genç</button>
+      <button class="voice-btn active" onclick="selectVoice(this,'FYPltOzsM2n1UbqzX19d')">👨 Erkek Genç</button>
+      <button class="voice-btn" onclick="selectVoice(this,'WRjHw9UKGmcRAoOgyIzT')">👴 Erkek Yaşlı</button>
+      <button class="voice-btn" onclick="selectVoice(this,'SAz9YHcvj6GT2YYXdXww')">👩 Kadın Genç</button>
     </div>
   </div>
   <div class="prog" id="prog">
@@ -166,37 +151,15 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
 
 <script>
 const BACKEND = 'https://hatirai-backend-production.up.railway.app';
+const AVATAR_ID = 'fc4125a5-83fa-45e2-8574-bf657ac19998';
+
 let photoFile = null;
+let selectedVoiceId = 'FYPltOzsM2n1UbqzX19d';
 let timeLeft = 60, timerInterval = null, timerStarted = false;
 let muted = false, listening = false;
 let userStream = null;
-let peerConnection = null, streamId = null, sessionId = null, didApiKey = null;
 let recognition = null;
-let bubbleCount = 0;
-
-// Web Speech API başlat
-function initSpeech() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { console.warn('Web Speech API yok'); return false; }
-  recognition = new SpeechRecognition();
-  recognition.lang = 'tr-TR';
-  recognition.continuous = false;
-  recognition.interimResults = true;
-
-  recognition.onresult = (e) => {
-    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
-    if (e.results[e.results.length-1].isFinal) {
-      stopListening();
-      if (transcript.trim()) processText(transcript.trim());
-    }
-  };
-  recognition.onerror = (e) => { console.warn('STT hata:', e); stopListening(); };
-  recognition.onend = () => { if (listening) stopListening(); };
-  return true;
-}
-
-let shouldRestore = true;
-let selectedVoiceId = 'FYPltOzsM2n1UbqzX19d';
+let avatar = null;
 
 function selectVoice(btn, voiceId) {
   selectedVoiceId = voiceId;
@@ -204,20 +167,15 @@ function selectVoice(btn, voiceId) {
   btn.classList.add('active');
 }
 
-function onPhoto(input, restore) {
+function onPhoto(input) {
   const file = input.files[0];
   if (!file) return;
   photoFile = file;
-  shouldRestore = restore;
   const url = URL.createObjectURL(file);
-  const prev = document.getElementById('photoPreview');
-  prev.src = url; prev.style.display = 'block';
+  document.getElementById('photoPreview').src = url;
+  document.getElementById('photoPreview').style.display = 'block';
   document.getElementById('avCircle').innerHTML = `<img src="${url}">`;
-  if (restore) {
-    document.getElementById('photoLabel').textContent = '✅ ' + file.name + ' (restore edilecek)';
-  } else {
-    document.getElementById('avatarLabel').textContent = '✅ ' + file.name + ' (hazır avatar)';
-  }
+  document.getElementById('photoLabel').textContent = '✅ ' + file.name;
   document.getElementById('startBtn').disabled = false;
   document.getElementById('startBtn').textContent = 'SOHBETE BAŞLA →';
 }
@@ -228,6 +186,23 @@ function setProgress(pct, text) {
   document.getElementById('progText').textContent = text;
 }
 
+function initSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return false;
+  recognition = new SR();
+  recognition.lang = 'tr-TR';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    stopListening();
+    if (text.trim()) processText(text.trim());
+  };
+  recognition.onerror = () => stopListening();
+  recognition.onend = () => { if (listening) stopListening(); };
+  return true;
+}
+
 async function startSession() {
   const name = document.getElementById('personName').value.trim() || 'Sevgili';
   const rel = document.getElementById('relation').value.trim() || 'yakınınız';
@@ -235,40 +210,8 @@ async function startSession() {
   window._session = { name, rel, ctx, voiceId: selectedVoiceId };
 
   document.getElementById('startBtn').disabled = true;
-  document.getElementById('startBtn').textContent = 'Hazırlanıyor...';
-  setProgress(10, 'Fotoğraf yükleniyor...');
-
-  try {
-    const formData = new FormData();
-    formData.append('photo', photoFile, 'photo.jpg');
-    formData.append('era', 'modern');
-    formData.append('restore', shouldRestore ? '1' : '0');
-
-    setProgress(30, shouldRestore ? 'Fotoğraf restore ediliyor...' : 'Avatar hazırlanıyor...');
-    const resp = await fetch(`${BACKEND}/api/chat/prepare`, { method: 'POST', body: formData });
-    
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data.restored_b64) {
-        document.getElementById('avCircle').innerHTML = `<img src="data:image/jpeg;base64,${data.restored_b64}">`;
-      }
-      if (data.stream_data) {
-        streamId = data.stream_data.id;
-        sessionId = data.stream_data.session_id;
-        window._didOffer = data.stream_data.offer;
-        window._iceServers = data.stream_data.ice_servers || [];
-        console.log('[D-ID] stream_data alındı, streamId:', streamId);
-      }
-      setProgress(70, 'Avatar hazırlanıyor...');
-    } else {
-      setProgress(70, 'Demo modda devam ediliyor...');
-    }
-  } catch(e) {
-    console.warn('Prepare:', e);
-    setProgress(70, 'Demo modda devam ediliyor...');
-  }
-
-  setProgress(90, 'Bağlantı kuruluyor...');
+  document.getElementById('startBtn').textContent = 'Bağlanıyor...';
+  setProgress(20, 'Token alınıyor...');
 
   // Kullanıcı kamerasını aç
   try {
@@ -276,103 +219,61 @@ async function startSession() {
     document.getElementById('userVideo').srcObject = userStream;
   } catch(e) { console.warn('Kamera:', e); }
 
-  // Speech API başlat
   initSpeech();
 
-  // D-ID bağlantısı
-  if (streamId && sessionId) {
-    await connectDID();
-  } else {
+  try {
+    // Backend'den HeyGen token al
+    setProgress(40, 'Avatar hazırlanıyor...');
+    const r = await fetch(`${BACKEND}/api/chat/heygen-token`, { method: 'POST' });
+    const d = await r.json();
+    const token = d.token;
+    console.log('[HeyGen] token alındı');
+
+    setProgress(60, 'Bağlantı kuruluyor...');
+
+    // HeyGen StreamingAvatar SDK
+    avatar = new StreamingAvatar({ token });
+
+    avatar.on('stream_ready', (event) => {
+      console.log('[HeyGen] stream ready!');
+      const vid = document.getElementById('avatarVideo');
+      vid.srcObject = event.detail;
+      vid.style.display = 'block';
+      document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('statusText').textContent = 'Bağlandı ✓';
+      document.getElementById('micBtn').disabled = false;
+      addBubble('avatar', `Selam ${name.split(' ')[0]}... Seni çok özledim.`);
+    });
+
+    avatar.on('stream_disconnected', () => {
+      console.log('[HeyGen] disconnected');
+      document.getElementById('statusText').textContent = 'Bağlantı kesildi';
+    });
+
+    await avatar.createStartAvatar({
+      quality: 'low',
+      avatarName: AVATAR_ID,
+      voice: { voiceId: selectedVoiceId },
+    });
+
     setProgress(100, 'Hazır!');
     await new Promise(r => setTimeout(r, 500));
     document.getElementById('setup').style.display = 'none';
     document.getElementById('avName').textContent = name;
     document.getElementById('avRel').textContent = rel;
-    document.getElementById('statusText').textContent = 'Demo modda bağlandı ✓';
-    document.getElementById('micBtn').disabled = false;
-    addBubble('avatar', `Selam ${name.split(' ')[0]}... Seni çok özledim. Konuşmaya hazırım.`);
-  }
-}
-
-async function connectDID() {
-  console.log('[D-ID] connectDID başlıyor, streamId:', streamId);
-  try {
-    const r = await fetch(`${BACKEND}/api/chat/did-token`, { method: 'POST' });
-    const d = await r.json();
-    didApiKey = d.token;
-    const authHeader = "Basic " + didApiKey;
-
-    // ICE servers stream_data'dan geldi
-    peerConnection = new RTCPeerConnection({ iceServers: window._iceServers || [] });
-
-    peerConnection.ontrack = (e) => {
-      console.log('[D-ID] video stream geldi!');
-      const vid = document.getElementById('avatarVideo');
-      vid.srcObject = e.streams[0];
-      vid.style.display = 'block';
-      document.getElementById('placeholder').style.display = 'none';
-      document.getElementById('statusText').textContent = 'Bağlandı ✓';
-      document.getElementById('micBtn').disabled = false;
-      addBubble('avatar', `Selam... Seni çok özledim.`);
-    };
-
-    peerConnection.onicecandidate = async ({ candidate }) => {
-      if (candidate) {
-        await fetch(`https://api.d-id.com/talks/streams/${streamId}/ice`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-          body: JSON.stringify({ candidate, session_id: sessionId })
-        });
-      }
-    };
-
-    peerConnection.oniceconnectionstatechange = () => {
-      console.log('[D-ID] ICE state:', peerConnection.iceConnectionState);
-    };
-
-    // Offer stream_data'dan geldi — tekrar fetch etme
-    const offer = window._didOffer;
-    console.log('[D-ID] offer type:', offer?.type);
-    await peerConnection.setRemoteDescription(offer);
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-
-    const sdpResp = await fetch(`https://api.d-id.com/talks/streams/${streamId}/sdp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-      body: JSON.stringify({ answer, session_id: sessionId })
-    });
-    console.log('[D-ID] SDP response:', sdpResp.status);
-
-    setProgress(100, 'Hazır!');
-    await new Promise(r => setTimeout(r, 500));
-    document.getElementById('setup').style.display = 'none';
-    document.getElementById('avName').textContent = window._session.name;
-    document.getElementById('avRel').textContent = window._session.rel;
     document.getElementById('statusText').textContent = 'Bağlanıyor...';
 
   } catch(e) {
-    console.error('[D-ID] hata:', e);
+    console.error('[HeyGen] hata:', e);
+    setProgress(100, 'Demo modda devam ediliyor...');
+    await new Promise(r => setTimeout(r, 500));
     document.getElementById('setup').style.display = 'none';
-    document.getElementById('statusText').textContent = 'Demo modda devam ediyor';
+    document.getElementById('avName').textContent = name;
+    document.getElementById('avRel').textContent = rel;
+    document.getElementById('statusText').textContent = 'Demo mod';
     document.getElementById('micBtn').disabled = false;
+    addBubble('avatar', `Selam ${name.split(' ')[0]}... Seni çok özledim.`);
   }
-}
-
-async function sendToDID(audioB64) {
-  if (!streamId || !sessionId || !didApiKey) return;
-  const authHeader = "Basic " + didApiKey;
-  try {
-    await fetch(`https://api.d-id.com/talks/streams/${streamId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-      body: JSON.stringify({
-        script: { type: 'audio', audio_url: `data:audio/mp3;base64,${audioB64}` },
-        session_id: sessionId,
-        config: { stitch: true }
-      })
-    });
-  } catch(e) { console.error('D-ID send:', e); }
 }
 
 function startTimer() {
@@ -404,18 +305,14 @@ function startListening() {
   startTimer();
   document.getElementById('micBtn').classList.add('rec');
   document.getElementById('listeningIndicator').classList.add('on');
-  if (recognition) {
-    try { recognition.start(); } catch(e) {}
-  }
+  if (recognition) try { recognition.start(); } catch(e) {}
 }
 
 function stopListening() {
   listening = false;
   document.getElementById('micBtn').classList.remove('rec');
   document.getElementById('listeningIndicator').classList.remove('on');
-  if (recognition) {
-    try { recognition.stop(); } catch(e) {}
-  }
+  if (recognition) try { recognition.stop(); } catch(e) {}
 }
 
 async function processText(text) {
@@ -438,8 +335,20 @@ async function processText(text) {
       removeTyping();
       addBubble('avatar', data.response);
       showWave(4000);
-      if (data.audio_b64) {
-        await sendToDID(data.audio_b64);
+
+      // HeyGen avatar konuşsun
+      if (avatar && data.response) {
+        try {
+          await avatar.speak({ text: data.response, taskType: 'repeat' });
+        } catch(e) {
+          console.warn('[HeyGen] speak hata:', e);
+          // Fallback: ElevenLabs ses çal
+          if (data.audio_b64) {
+            const audio = new Audio(`data:audio/mp3;base64,${data.audio_b64}`);
+            audio.play().catch(() => {});
+          }
+        }
+      } else if (data.audio_b64) {
         const audio = new Audio(`data:audio/mp3;base64,${data.audio_b64}`);
         audio.play().catch(() => {});
       }
@@ -448,19 +357,18 @@ async function processText(text) {
   } catch(e) { console.warn('Backend:', e); }
 
   removeTyping();
-  const demos = ['Seni çok özledim. Her gün aklımdasın.','Biliyorum, çok zor. Ama sen güçlüsün.','Seni seviyorum. Kendine iyi bak.'];
-  addBubble('avatar', demos[Math.floor(Math.random()*demos.length)]);
+  const demos = ['Seni çok özledim. Her gün aklımdasın.', 'Biliyorum, çok zor. Ama sen güçlüsün.', 'Seni seviyorum. Kendine iyi bak.'];
+  addBubble('avatar', demos[Math.floor(Math.random() * demos.length)]);
   showWave(3500);
 }
 
 function addBubble(type, text) {
   const tr = document.getElementById('transcript');
-  // Eski baloncuları temizle (max 3)
   while (tr.children.length >= 3) tr.removeChild(tr.firstChild);
   const div = document.createElement('div');
   div.className = `bubble ${type}`;
   div.textContent = text;
-  div.id = type === 'typing' ? 'typingBubble' : '';
+  if (type === 'typing') div.id = 'typingBubble';
   tr.appendChild(div);
 }
 
@@ -485,7 +393,7 @@ function endCall() {
   if (confirm('Görüşmeyi bitirmek istiyor musunuz?')) {
     clearInterval(timerInterval);
     if (userStream) userStream.getTracks().forEach(t => t.stop());
-    if (peerConnection) peerConnection.close();
+    if (avatar) avatar.stopAvatar();
     if (recognition) recognition.stop();
     document.body.innerHTML = `<div style="background:#000;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;"><p style="color:#c8a96e;font-size:16px;letter-spacing:3px">GÖRÜŞME SONA ERDİ</p><p style="color:rgba(255,255,255,.3);font-size:13px;text-align:center;line-height:2">Bu anı hep kalbinizde taşıyın.<br><a href="/" style="color:#c8a96e;text-decoration:none">← HatırAI</a></p></div>`;
   }
