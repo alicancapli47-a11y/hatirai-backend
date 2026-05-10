@@ -1680,22 +1680,23 @@ async def admin_all(_: str = Depends(require_admin)):
 # Mount router
 @api_router.post("/chat/heygen-token")
 async def heygen_token():
-    """HeyGen LiveAvatar token al."""
-    import httpx, base64
+    """LiveAvatar session token al."""
+    import httpx
     api_key = os.environ.get("LIVEAVATAR_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="LIVEAVATAR_API_KEY eksik")
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                "https://api.heygen.com/v1/streaming.create_token",
-                headers={"x-api-key": api_key},
+                "https://api.liveavatar.com/v1/sessions/token",
+                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
                 timeout=15,
             )
             logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:200]}")
             if resp.status_code == 200:
                 data = resp.json()
-                return {"token": data.get("data", {}).get("token", "")}
+                token = data.get("data", {}).get("session_token", "") or data.get("token", "")
+                return {"token": token}
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
     except Exception as e:
         logger.exception(f"[heygen-token] Hata: {e}")
