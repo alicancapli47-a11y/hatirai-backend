@@ -231,9 +231,10 @@ async function startSession() {
 
     setProgress(60, 'Bağlantı kuruluyor...');
 
-    // LiveAvatar SDK
-    const LA = window.LiveAvatarWebSDK || window.LiveAvatar;
-    if (!LA) throw new Error('LiveAvatar SDK yüklenemedi');
+    // LiveAvatar SDK - debug
+    console.log('[SDK] window keys:', Object.keys(window).filter(k => k.toLowerCase().includes('avatar') || k.toLowerCase().includes('live') || k.toLowerCase().includes('heygen')));
+    const LA = window.LiveAvatarWebSDK || window.LiveAvatar || window.HeyGenLiveAvatar || window.liveAvatarWebSdk;
+    if (!LA) throw new Error('LiveAvatar SDK yüklenemedi - ' + JSON.stringify(Object.keys(window).filter(k => k.toLowerCase().includes('avatar'))));
     avatar = new LA.LiveAvatarSession({ token });
 
     avatar.on('session_ready', (event) => {
