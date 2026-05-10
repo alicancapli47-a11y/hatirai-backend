@@ -1849,22 +1849,11 @@ async def chat_respond(request: Request):
         context = form.get("context", "")
         audio_file = form.get("audio")
 
-        # 1. Whisper STT
-        user_text = ""
-        if audio_file:
-            audio_bytes = await audio_file.read()
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY', '')}"},
-                    files={"file": ("audio.webm", audio_bytes, "audio/webm")},
-                    data={"model": "whisper-1", "language": "tr"},
-                    timeout=30,
-                )
-                if resp.status_code == 200:
-                    user_text = resp.json().get("text", "")
-
-        if not user_text:
+        # 1. Kullanıcı metni form'dan al (Web Speech API frontend'de çalışıyor)
+        user_text = form.get("user_text", "")
+        
+        if not user_text and audio_file:
+            # Fallback: ses dosyası varsa basit placeholder
             user_text = "Seni çok özledim"
 
         # 2. Claude ile cevap üret
