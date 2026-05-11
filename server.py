@@ -571,7 +571,49 @@ async def _veo_clip(image_url: str, prompt: str) -> str:
             "resolution": "720p",
             "aspect_ratio": "9:16",
             "generate_audio": True,
-            "safety_tolerance": "6",
+            "safety_tolerance": "4",
+        },
+    )
+    result = await handle.get()
+    return result["video"]["url"]
+
+
+# Ses ID haritası — kullanıcının seçtiği ilişki tipine göre
+HEYGEN_VOICES = {
+    "dede":   "baeba2c18fea4438a4d83a54a462498a",  # Grim Gökhan
+    "baba":   "baeba2c18fea4438a4d83a54a462498a",  # Grim Gökhan
+    "anne":   "664b73058b784aa89ddb2924c141d441",  # Dynamic Derya
+    "nine":   "664b73058b784aa89ddb2924c141d441",
+    "teyze":  "664b73058b784aa89ddb2924c141d441",
+    "abla":   "664b73058b784aa89ddb2924c141d441",
+    "kız":    "664b73058b784aa89ddb2924c141d441",
+    "agabey": "836aa05e398543d08231f68bffdfc025",  # Deniz Yılmaz
+    "abi":    "836aa05e398543d08231f68bffdfc025",
+    "erkek":  "836aa05e398543d08231f68bffdfc025",
+    "default": "baeba2c18fea4438a4d83a54a462498a",
+}
+
+def _pick_heygen_voice(relationship: str) -> str:
+    rel = (relationship or "").lower().strip()
+    for key, voice_id in HEYGEN_VOICES.items():
+        if key in rel:
+            return voice_id
+    return HEYGEN_VOICES["default"]
+
+
+async def _heygen_clip(image_url: str, script: str, relationship: str = "") -> str:
+    """HeyGen Avatar4 fallback — fotoğraf + script → video URL."""
+    voice_id = _pick_heygen_voice(relationship)
+    handle = await fal_client.submit_async(
+        "fal-ai/heygen/avatar4/image-to-video",
+        arguments={
+            "image_url": image_url,
+            "prompt": script,
+            "voice_id": voice_id,
+            "talking_style": "expressive",
+            "aspect_ratio": "9:16",
+            "resolution": "720p",
+            "background": {"type": "color", "value": "#000000"},
         },
     )
     result = await handle.get()
@@ -592,6 +634,7 @@ async def _run_veo_pipeline(job_id: str):
             return
         form = await db.memory_forms.find_one({"photo_id": job["photo_id"]}, {"_id": 0}, sort=[("created_at", -1)])
         full_script = (form or {}).get("full_script") or "Merhaba, seni çok özledim."
+        relationship = (form or {}).get("relationship", "")
 
         start_path = os.path.join(workdir, "start.png")
         with open(start_path, "wb") as f:
@@ -643,11 +686,16 @@ async def _run_veo_pipeline(job_id: str):
                 f'Speaks softly in Turkish: "{line.strip()}". '
                 "Static camera; no zoom, no pan; preserve the reference face one-to-one."
             )
-            video_url = await _veo_clip(current_ref, prompt)
+            try:
+                video_url = await _veo_clip(current_ref, prompt)
+                logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok — Veo")
+            except Exception as veo_err:
+                logger.warning(f"[veo {job_id}] Veo başarısız, HeyGen fallback: {veo_err}")
+                video_url = await _heygen_clip(current_ref, line.strip(), relationship)
+                logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok — HeyGen fallback")
             clip_local = os.path.join(workdir, f"c{i}.mp4")
             await asyncio.to_thread(_http_download, video_url, clip_local)
             clip_paths.append(clip_local)
-            logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok")
 
             await db.video_jobs.update_one(
                 {"id": job_id},
