@@ -609,6 +609,7 @@ async def _heygen_clip(image_url: str, script: str, relationship: str = "") -> s
         arguments={
             "image_url": image_url,
             "prompt": script,
+            "voice": "Derya - Lifelike - Excited 🤩",
             "voice_id": voice_id,
             "talking_style": "expressive",
             "aspect_ratio": "9:16",
