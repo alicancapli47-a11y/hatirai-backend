@@ -833,6 +833,7 @@ async def _run_veo_pipeline(job_id: str):
 
             # Bu klip icin soylenecek cumleleri al
             chunk_text = chunks[i] if chunks[i] else full_script
+            is_last = (i == NUM_CLIPS - 1)
 
             prompt = (
                 "Cinematic studio portrait on a pure black background, no environment, no room, no objects. "
