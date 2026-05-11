@@ -52,6 +52,7 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 FAL_KEY = os.environ.get("FAL_KEY")
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 
 # Iyzico config
 IYZICO_OPTIONS = {
@@ -88,7 +89,7 @@ class PhotoRecord(BaseModel):
 
 class PhotoPublic(BaseModel):
     id: str
-    noir_b64: Optional[str] = None  # ALWAYS the watermarked preview (deprecated name kept for compat)
+    noir_b64: Optional[str] = None
     status: str
     error: Optional[str] = None
 
@@ -107,7 +108,7 @@ class VideoJob(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     photo_id: str
     user_email: Optional[str] = None
-    status: str = "pending_payment"  # free-form for backward compat; new jobs use pending_payment|ready|failed
+    status: str = "pending_payment"
     payment_status: str = "unpaid"
     media_url: Optional[str] = None
     kind: Optional[str] = "image"
@@ -121,8 +122,8 @@ class VideoRequestBody(BaseModel):
 
 class MemoryFormBody(BaseModel):
     photo_id: str
-    name: str  # Sender's name (the user)
-    relationship: str  # e.g. "Dede", "Anne"
+    name: str
+    relationship: str
     last_memory: Optional[str] = None
 
 
@@ -176,12 +177,11 @@ async def require_admin(authorization: Optional[str] = Header(None)) -> str:
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
 
-# Optional user auth helper (used by /memory/form + history) — defined early so routes can Depends on it
 async def current_user(authorization: Optional[str] = Header(None)) -> Optional[dict]:
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization.split(" ", 1)[1]
-    if token.count(".") == 2:  # admin JWT — skip
+    if token.count(".") == 2:
         return None
     sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
     if not sess:
@@ -199,20 +199,20 @@ async def current_user(authorization: Optional[str] = Header(None)) -> Optional[
 
 async def require_user(user: Optional[dict] = Depends(current_user)) -> dict:
     if not user:
-        raise HTTPException(status_code=401, detail="Giriş gerekli")
+        raise HTTPException(status_code=401, detail="Giris gerekli")
     return user
 
 
 # ===================== ROUTES =====================
 @api_router.get("/")
 async def root():
-    return {"app": "HatırAI", "status": "ok"}
+    return {"app": "HatirAI", "status": "ok"}
 
 
 @api_router.post("/admin/login", response_model=AdminLoginResponse)
 async def admin_login(body: AdminLoginRequest):
     if body.username != ADMIN_USERNAME or body.password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Geçersiz kullanıcı adı veya şifre")
+        raise HTTPException(status_code=401, detail="Gecersiz kullanici adi veya sifre")
     token, expires = create_admin_token()
     return AdminLoginResponse(token=token, expires_at=expires)
 
@@ -220,47 +220,90 @@ async def admin_login(body: AdminLoginRequest):
 # ---------- Photo: cinematic transform ----------
 ERA_PROMPTS: dict[str, str] = {
     "1950s": (
-        "Restore and dramatize this old portrait. PRIORITY 1 — fix quality: heavily denoise, "
-        "sharpen the face, fix any blur, recover natural skin texture, clear sharp eyes "
-        "looking straight at the lens. PRIORITY 2 — REFRAME so the subject is facing the "
-        "camera with a frontal headshot angle (head straight, eyes meeting the camera, "
-        "shoulders centered). Preserve the person's identity, age, hair and clothing. "
-        "PRIORITY 3 — Replace background with pure solid black. Apply 1950s Hollywood "
-        "B&W noir lighting: strong key light from one side, soft warm rim light, deep "
-        "chiaroscuro shadows, silver-warm grayscale tones, fine film grain. "
-        "Output ONLY the final image, sharp and ready for further animation."
+        "Restore and dramatize this old portrait. "
+        "Fix quality: denoise heavily, sharpen face, fix blur, recover skin texture, clear sharp eyes. "
+        "Reframe so subject faces camera directly, frontal headshot, eyes meeting lens, shoulders centered. "
+        "Preserve identity, age, hair and clothing exactly. "
+        "Replace background with pure solid black. "
+        "Apply 1950s Hollywood black and white noir lighting: strong key light from one side, "
+        "soft warm rim light, deep chiaroscuro shadows, silver-warm grayscale tones, fine film grain. "
+        "Output only the final sharp image ready for animation."
     ),
     "80s": (
-        "Restore and dramatize this old portrait. PRIORITY 1 — fix quality: heavily denoise, "
-        "sharpen the face, fix any blur, restore natural skin texture, clear sharp eyes. "
-        "PRIORITY 2 — REFRAME so the subject is facing the camera with a frontal headshot "
-        "angle, eyes meeting the lens. Preserve identity, age, hair and clothing. "
-        "PRIORITY 3 — Replace background with pure solid black. Apply warm 80s studio "
-        "portrait lighting: strong golden rim light, soft fill light, warm VHS color grade, "
-        "faded pastel tones, soft halation, gentle film grain. Keep COLORS — not B&W. "
-        "Output ONLY the final image, sharp and ready for animation."
+        "Restore and dramatize this old portrait. "
+        "Fix quality: denoise heavily, sharpen face, fix blur, restore skin texture, clear sharp eyes. "
+        "Reframe so subject faces camera directly, frontal headshot, eyes meeting lens. "
+        "Preserve identity, age, hair and clothing exactly. "
+        "Replace background with pure solid black. "
+        "Apply warm 80s studio portrait lighting: strong golden rim light, soft fill light, "
+        "warm color grade, faded pastel tones, soft halation, gentle film grain. Keep full color. "
+        "Output only the final sharp image ready for animation."
     ),
     "modern": (
-        "Restore and dramatize this portrait. PRIORITY 1 — fix quality: heavily denoise, "
-        "sharpen the face, fix any blur, restore skin texture, clear sharp eyes meeting "
-        "the lens. PRIORITY 2 — REFRAME so the subject is facing the camera with a frontal "
-        "headshot angle, head straight, shoulders centered. Preserve identity, age, hair "
-        "and clothing. PRIORITY 3 — Replace background with pure solid black. Apply modern "
-        "cinematic studio lighting: dramatic side rim light with warm golden highlights, "
+        "Restore and dramatize this portrait. "
+        "Fix quality: denoise heavily, sharpen face, fix blur, restore skin texture, clear sharp eyes. "
+        "Reframe so subject faces camera directly, frontal headshot, head straight, shoulders centered. "
+        "Preserve identity, age, hair and clothing exactly. "
+        "Replace background with pure solid black. "
+        "Apply modern cinematic studio lighting: dramatic side rim light with warm golden highlights, "
         "deep true blacks, rich shadows, clean neutral midtones, delicate film grain. "
-        "Output ONLY the final image, sharp and ready for animation."
+        "Output only the final sharp image ready for animation."
     ),
 }
 
+# ---------- Veo video prompts (English only, no Turkish text, no special chars) ----------
+VEO_OPENING_PROMPTS = [
+    (
+        "Cinematic studio portrait. Pure black background only, no room, no environment. "
+        "Dramatic warm golden rim light from the right, soft fill light from the left. "
+        "Person faces camera directly with a calm, warm, loving expression. "
+        "Gentle natural blinks, subtle mouth movement as if beginning to speak. "
+        "Medium close-up shot. Fine film grain. Static camera, no zoom, no pan. "
+        "Preserve exact face, age, hair, skin and clothing from the reference image."
+    ),
+    (
+        "Cinematic portrait on pure black background. "
+        "Strong side key light with warm amber tone, deep shadow on opposite side. "
+        "Subject looks softly into the camera with tender, nostalgic eyes. "
+        "Slow natural blinks, slight lip movement as if about to speak. "
+        "Intimate medium close-up. Cinematic film texture. Static locked camera. "
+        "Preserve exact identity and appearance from reference."
+    ),
+    (
+        "Studio cinematic portrait, pure solid black background. "
+        "Gentle warm backlight creating a soft halo, delicate frontal fill light. "
+        "Person gazes at camera with quiet, affectionate, deeply emotional expression. "
+        "Natural slow blinks, subtle jaw and lip movement. "
+        "Close-up framing, vintage film grain. No camera movement whatsoever. "
+        "Identical face, age and clothing to the reference image."
+    ),
+]
+
+VEO_CLOSING_PROMPTS = [
+    (
+        "Cinematic studio portrait. Pure black background, no environment. "
+        "Warm golden three-point studio lighting with rich deep shadows. "
+        "Person holds a long gaze at the camera, expression soft and emotionally resolved. "
+        "Eyes slowly become glassy, a slight melancholic smile forms. Very slow blink. "
+        "Medium close-up fading gently. Cinematic grain. Static camera. "
+        "Preserve exact face and appearance from reference."
+    ),
+    (
+        "Cinematic portrait on pure black background. "
+        "Dramatic warm rim light, gentle fill, deep blacks. "
+        "Subject finishes speaking, eyes lower briefly then return to camera with warmth. "
+        "Slow deliberate blink, peaceful expression. "
+        "Intimate close-up, film grain texture. Locked static camera. "
+        "Exact age, face, hair and clothing from reference preserved."
+    ),
+]
+
 
 def _make_watermarked_preview_b64(clean_b64: str) -> str:
-    """Render a noir-styled watermark across the image: gold 'HatırAI · ÖNİZLEME'
-    diagonal repeat + corner mark. Returns new base64 PNG."""
     try:
         img = _PILImage.open(BytesIO(_b64.b64decode(clean_b64))).convert("RGBA")
         W, H = img.size
 
-        # Try to load a serif font, fallback to default
         font_main = None
         font_corner = None
         for path in [
@@ -277,11 +320,9 @@ def _make_watermarked_preview_b64(clean_b64: str) -> str:
             font_main = _PILFont.load_default()
             font_corner = _PILFont.load_default()
 
-        # Diagonal repeating watermark layer
         layer = _PILImage.new("RGBA", img.size, (0, 0, 0, 0))
         draw = _PILDraw.Draw(layer)
-        text = "HatırAI · ÖNİZLEME"
-        # Approximate text size for tiling
+        text = "HatirAI - ONIZLEME"
         try:
             bbox = draw.textbbox((0, 0), text, font=font_main)
             tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -292,20 +333,17 @@ def _make_watermarked_preview_b64(clean_b64: str) -> str:
         for y in range(-H, H * 2, step_y):
             for x in range(-W, W * 2, step_x):
                 draw.text((x, y), text, font=font_main, fill=(201, 169, 97, 70))
-        # Rotate diagonal
         layer = layer.rotate(-22, resample=_PILImage.BICUBIC, expand=False)
         out = _PILImage.alpha_composite(img, layer)
 
-        # Corner mark
         draw2 = _PILDraw.Draw(out)
-        corner = "HatırAI · ÖNİZLEME · ÖDEME GEREKLİ"
+        corner = "HatirAI - ONIZLEME - ODEME GEREKLI"
         try:
             bb = draw2.textbbox((0, 0), corner, font=font_corner)
             cw, ch = bb[2] - bb[0], bb[3] - bb[1]
         except Exception:
             cw, ch = (W // 3, H // 30)
         pad = 16
-        # background slab
         draw2.rectangle(
             [(W - cw - pad * 2, H - ch - pad * 2), (W, H)],
             fill=(0, 0, 0, 180),
@@ -330,14 +368,12 @@ async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"
         import base64 as _base64
         prompt = ERA_PROMPTS.get(era, ERA_PROMPTS["modern"])
 
-        # fal.ai'ye base64 görseli upload et, URL al
         image_bytes = _base64.b64decode(image_b64)
         tmp_path = f"/tmp/upload_{photo_id}.jpg"
         with open(tmp_path, "wb") as f:
             f.write(image_bytes)
         image_url = await fal_client.upload_file_async(tmp_path)
 
-        # fal.ai nano-banana-2 (Gemini 3.1 Flash Image) ile görsel dönüşümü
         handle = await fal_client.submit_async(
             "fal-ai/nano-banana-2/edit",
             arguments={
@@ -376,7 +412,7 @@ async def _run_noir_transform(photo_id: str, image_b64: str, era: str = "modern"
             {"id": photo_id},
             {"$set": {"status": "ready", "noir_b64": noir_b64, "preview_b64": preview_b64, "error": None}},
         )
-        logger.info(f"[cinema] Photo {photo_id} ready ({len(noir_b64) if noir_b64 else 0} b64 chars, era={era}, watermark={bool(preview_b64)})")
+        logger.info(f"[cinema] Photo {photo_id} ready (era={era})")
     except Exception as e:
         logger.exception(f"[cinema] Transform failed for {photo_id}")
         await db.photos.update_one(
@@ -400,8 +436,7 @@ async def transform_photo(body: PhotoTransformRequest):
 async def get_photo(photo_id: str):
     doc = await db.photos.find_one({"id": photo_id}, {"_id": 0})
     if not doc:
-        raise HTTPException(status_code=404, detail="Fotoğraf bulunamadı")
-    # Always return the watermarked preview to the public — clean version stays server-side
+        raise HTTPException(status_code=404, detail="Fotograf bulunamadi")
     public_b64 = doc.get("preview_b64") or doc.get("noir_b64")
     return PhotoPublic(
         id=doc["id"],
@@ -414,7 +449,7 @@ async def get_photo(photo_id: str):
 # ---------- Memory form + AI sentence ----------
 async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str]) -> str:
     if not last_memory or not last_memory.strip():
-        return "Birlikte geçirdiğimiz o güzel günleri unutamıyorum"
+        return "Birlikte gecirdigimiz o guzel gunleri unutamiyorum"
     try:
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = await asyncio.to_thread(
@@ -422,45 +457,45 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
             model="claude-sonnet-4-5-20250929",
             max_tokens=100,
             system=(
-                "Sen Türkçe konuşan, sıcak, sinematik, hafif duygusal bir senaryo yazarısın. "
-                "Verilen 'paylaşılan anı'yı, kayıp bir yakının hayalete benzeyen bir "
-                "selamlama videosunda söyleyeceği TEK bir cümleye dönüştür. "
-                "En fazla 18 kelime. Klişeden kaçın. 'Hatırlıyor musun', 'O günler' gibi "
-                "dokunaklı, kişisel bir ton kullan. Sadece cümleyi döndür, başka hiçbir şey yazma."
+                "Sen Turkce konusan, sicak, sinematik, hafif duygusal bir senaryo yazarisin. "
+                "Verilen paylasilan aniyi, kayip bir yakinin hayalete benzeyen bir "
+                "selamlama videosunda soyleyecegi TEK bir cumleye donustur. "
+                "En fazla 18 kelime. Kliseden kacin. Dokunaklı, kisisel bir ton kullan. "
+                "Sadece cumleyi dondur, baska hicbir sey yazma."
             ),
             messages=[{
                 "role": "user",
                 "content": (
-                    f"İlişki: {relationship}\n"
-                    f"Karşı tarafa söyleyenin adı: {name}\n"
-                    f"Paylaşılan anı: {last_memory}\n\n"
-                    "Bu anıya atıfta bulunan 1 cümle yaz."
+                    f"Iliski: {relationship}\n"
+                    f"Karsı tarafa soyleyenin adi: {name}\n"
+                    f"Paylasilan ani: {last_memory}\n\n"
+                    "Bu aniya atifta bulunan 1 cumle yaz."
                 )
             }]
         )
         line = (response.content[0].text or "").strip().strip('"').strip("'").splitlines()[0]
-        return line[:240] if line else "Birlikte geçirdiğimiz o güzel günleri unutamıyorum"
+        return line[:240] if line else "Birlikte gecirdigimiz o guzel gunleri unutamiyorum"
     except Exception as e:
         logger.warning(f"[ai-sentence] fallback ({e})")
-        return "Birlikte geçirdiğimiz o güzel günleri unutamıyorum"
+        return "Birlikte gecirdigimiz o guzel gunleri unutamiyorum"
 
 
 def _build_full_script(name: str, ai_sentence: str) -> str:
     import random
     OPENINGS = [
         f"Selam {name}.",
-        f"{name}, seni çok özledim.",
-        f"Merhaba {name}, ne kadar büyüdün.",
+        f"{name}, seni cok ozledim.",
+        f"Merhaba {name}, ne kadar buyudun.",
     ]
     MIDDLES = [
-        "Her gün aklımdasın, bunu bil. Seninle geçirdiğimiz her anı içimde yaşatıyorum. O güzel günleri, o kahkahalarımızı, o sessiz bakışlarımızı unutmak mümkün mü?",
-        "Seni düşünmeden tek bir gün geçmiyor. Bazen sanki yanımdasın gibi hissediyorum. Sesin kulaklarımda, gülüşün gözlerimin önünde.",
-        "Seni her zaman yanımda hissediyorum. Zor günlerde bile beni ayakta tutan senin sevgindir. Bıraktığın izler hiç silinmedi.",
+        "Her gun aklimdasin, bunu bil. Seninle gecirdigimiz her ani icimde yasatiyorum. O guzel gunleri, o kahkahalari, o sessiz bakislari unutmak mumkun mu?",
+        "Seni dusunmeden tek bir gun gecmiyor. Bazen sanki yanimdasin gibi hissediyorum. Sesin kulaklarimda, gulisun gozlerimin onunde.",
+        "Seni her zaman yanimda hissediyorum. Zor gunlerde bile beni ayakta tutan senin sevgindir. Biraktigin izler hic silinmedi.",
     ]
     CLOSINGS = [
-        f"Seni çok seviyorum {name}. Kendine iyi bak.",
-        f"Her zaman kalbimdesin {name}. Güçlü ol.",
-        f"Umuyorum ki bir gün yeniden görüşürüz {name}. Seni seviyorum.",
+        f"Seni cok seviyorum {name}. Kendine iyi bak.",
+        f"Her zaman kalbimdesin {name}. Guclu ol.",
+        f"Umuyorum ki bir gun yeniden gorusuruz {name}. Seni seviyorum.",
     ]
     return (
         f"{random.choice(OPENINGS)} {ai_sentence}. "
@@ -473,12 +508,12 @@ def _build_full_script(name: str, ai_sentence: str) -> str:
 async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depends(current_user)):
     photo = await db.photos.find_one({"id": body.photo_id}, {"_id": 0})
     if not photo:
-        raise HTTPException(status_code=404, detail="Fotoğraf bulunamadı")
+        raise HTTPException(status_code=404, detail="Fotograf bulunamadi")
     if photo.get("status") != "ready":
-        raise HTTPException(status_code=400, detail="Fotoğraf henüz hazır değil")
+        raise HTTPException(status_code=400, detail="Fotograf henuz hazir degil")
 
     name = body.name.strip()[:40] or "Sevgilim"
-    rel = body.relationship.strip()[:30] or "Sevdiğim"
+    rel = body.relationship.strip()[:30] or "Sevdigim"
     memory = (body.last_memory or "").strip()[:400]
     ai_sentence = await _generate_ai_sentence(name, rel, memory)
     full = _build_full_script(name, ai_sentence)
@@ -494,7 +529,7 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
     if user:
         job_doc["user_id"] = user["user_id"]
     await db.video_jobs.insert_one(job_doc)
-    logger.info(f"[memory/form] photo={body.photo_id} job={job.id} user={user.get('email') if user else 'anon'} → awaiting payment")
+    logger.info(f"[memory/form] photo={body.photo_id} job={job.id} user={user.get('email') if user else 'anon'}")
 
     return {"form": rec.model_dump(), "job_id": job.id}
 
@@ -505,8 +540,63 @@ async def get_memory_form(photo_id: str):
     return MemoryForm(**doc) if doc else None
 
 
-# ---------- Veo 3.1 sequential video generation ----------
-NUM_CLIPS = 2  # 2 × 8s = 16s total
+# ---------- ElevenLabs TTS ----------
+async def _generate_elevenlabs_audio(script: str, voice_id: str, workdir: str, filename: str) -> Optional[str]:
+    """
+    ElevenLabs ile Turkce sesi uret, MP3 olarak kaydet, yolunu dondur.
+    Basarisiz olursa None doner (sessiz video uretilir).
+    """
+    if not ELEVENLABS_API_KEY:
+        logger.warning("[tts] ELEVENLABS_API_KEY eksik, ses atlanıyor")
+        return None
+    try:
+        import httpx
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "text": script,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }
+        async with httpx.AsyncClient(timeout=60) as hc:
+            resp = await hc.post(url, headers=headers, json=payload)
+        if resp.status_code != 200:
+            logger.warning(f"[tts] ElevenLabs {resp.status_code}: {resp.text[:200]}")
+            return None
+        audio_path = os.path.join(workdir, filename)
+        with open(audio_path, "wb") as f:
+            f.write(resp.content)
+        logger.info(f"[tts] Ses uretildi: {audio_path} ({len(resp.content)} bytes)")
+        return audio_path
+    except Exception as e:
+        logger.warning(f"[tts] Ses uretilemedi: {e}")
+        return None
+
+
+def _ffmpeg_merge_audio(video_path: str, audio_path: str, out_path: str) -> None:
+    """
+    Video uzerine sesi ekle. Video suresi baz alinir (audio kesilir/uzatilmaz).
+    """
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-i", audio_path,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "128k",
+        "-shortest",
+        out_path,
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, timeout=120)
+    logger.info(f"[ffmpeg] Ses birlestirildi: {out_path}")
+
+
+# ---------- Veo pipeline ----------
+NUM_CLIPS = 2  # 2 x 8s = 16s
 
 
 def _ffmpeg_last_frame(video_path: str, frame_path: str) -> None:
@@ -515,12 +605,13 @@ def _ffmpeg_last_frame(video_path: str, frame_path: str) -> None:
 
 
 def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
-    """Concat clips and burn a small HatırAI corner watermark onto the final video."""
+    """Clipları birlestir ve kose filigran ekle."""
     tmp = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False)
     try:
         for p in video_paths:
             tmp.write(f"file '{os.path.abspath(p)}'\n")
-        tmp.flush(); tmp.close()
+        tmp.flush()
+        tmp.close()
 
         font_candidates = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -531,7 +622,7 @@ def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
 
         if font_path:
             draw = (
-                f"drawtext=fontfile='{font_path}':text='HatırAI':"
+                f"drawtext=fontfile='{font_path}':text='HatirAI':"
                 f"fontcolor=0xE6C36A@0.85:fontsize=h/26:"
                 f"x=w-tw-24:y=h-th-24:"
                 f"box=1:boxcolor=black@0.35:boxborderw=10"
@@ -539,18 +630,21 @@ def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
             vf_args = ["-vf", draw]
         else:
             vf_args = []
-            logger.warning("[watermark] no usable font found, writing unmarked final video")
+            logger.warning("[watermark] Font bulunamadi, filigransiz video")
 
         cmd = [
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", tmp.name,
             *vf_args,
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-            "-c:a", "aac", "-b:a", "128k", out_path,
+            "-c:a", "aac", "-b:a", "128k",
+            out_path,
         ]
         subprocess.run(cmd, check=True, capture_output=True, timeout=300)
     finally:
-        try: os.unlink(tmp.name)
-        except Exception: pass
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
 
 
 def _http_download(url: str, dest: str) -> None:
@@ -561,7 +655,12 @@ def _http_download(url: str, dest: str) -> None:
 
 
 async def _veo_clip(image_url: str, prompt: str) -> str:
-    """Submit a single Veo 3.1 LITE image-to-video request and return the video URL."""
+    """
+    Veo 3.1 Lite ile 8 saniyelik video uret.
+    - generate_audio=True: Veo kendi sinematik sesini uretsin
+    - safety_tolerance integer olmali (string degil)
+    - Prompt tamamen Ingilizce, Turkce metin ve ozel karakter yok
+    """
     handle = await fal_client.submit_async(
         "fal-ai/veo3.1/lite/image-to-video",
         arguments={
@@ -571,45 +670,60 @@ async def _veo_clip(image_url: str, prompt: str) -> str:
             "resolution": "720p",
             "aspect_ratio": "9:16",
             "generate_audio": True,
-            "safety_tolerance": "4",
+            "safety_tolerance": 4,   # integer, string degil
         },
     )
     result = await handle.get()
     return result["video"]["url"]
 
 
-# Ses ID haritası — kullanıcının seçtiği ilişki tipine göre
+# Ses secimi: iliskiye gore ElevenLabs voice ID
+ELEVENLABS_VOICES = {
+    "dede":    "FYPltOzsM2n1UbqzX19d",
+    "baba":    "FYPltOzsM2n1UbqzX19d",
+    "nine":    "SAz9YHcvj6GT2YYXdXww",
+    "anne":    "SAz9YHcvj6GT2YYXdXww",
+    "teyze":   "SAz9YHcvj6GT2YYXdXww",
+    "abla":    "SAz9YHcvj6GT2YYXdXww",
+    "kiz":     "SAz9YHcvj6GT2YYXdXww",
+    "agabey":  "WRjHw9UKGmcRAoOgyIzT",
+    "abi":     "WRjHw9UKGmcRAoOgyIzT",
+    "erkek":   "WRjHw9UKGmcRAoOgyIzT",
+    "default": "FYPltOzsM2n1UbqzX19d",
+}
+
+# HeyGen fallback icin ses
 HEYGEN_VOICES = {
-    "dede":   "baeba2c18fea4438a4d83a54a462498a",  # Grim Gökhan
-    "baba":   "baeba2c18fea4438a4d83a54a462498a",  # Grim Gökhan
-    "anne":   "664b73058b784aa89ddb2924c141d441",  # Dynamic Derya
-    "nine":   "664b73058b784aa89ddb2924c141d441",
-    "teyze":  "664b73058b784aa89ddb2924c141d441",
-    "abla":   "664b73058b784aa89ddb2924c141d441",
-    "kız":    "664b73058b784aa89ddb2924c141d441",
-    "agabey": "836aa05e398543d08231f68bffdfc025",  # Deniz Yılmaz
-    "abi":    "836aa05e398543d08231f68bffdfc025",
-    "erkek":  "836aa05e398543d08231f68bffdfc025",
+    "dede":    "baeba2c18fea4438a4d83a54a462498a",
+    "baba":    "baeba2c18fea4438a4d83a54a462498a",
+    "anne":    "664b73058b784aa89ddb2924c141d441",
+    "nine":    "664b73058b784aa89ddb2924c141d441",
+    "teyze":   "664b73058b784aa89ddb2924c141d441",
+    "abla":    "664b73058b784aa89ddb2924c141d441",
+    "kiz":     "664b73058b784aa89ddb2924c141d441",
+    "agabey":  "836aa05e398543d08231f68bffdfc025",
+    "abi":     "836aa05e398543d08231f68bffdfc025",
+    "erkek":   "836aa05e398543d08231f68bffdfc025",
     "default": "baeba2c18fea4438a4d83a54a462498a",
 }
 
-def _pick_heygen_voice(relationship: str) -> str:
+
+def _pick_voice(relationship: str, voice_map: dict) -> str:
     rel = (relationship or "").lower().strip()
-    for key, voice_id in HEYGEN_VOICES.items():
-        if key in rel:
+    for key, voice_id in voice_map.items():
+        if key != "default" and key in rel:
             return voice_id
-    return HEYGEN_VOICES["default"]
+    return voice_map["default"]
 
 
 async def _heygen_clip(image_url: str, script: str, relationship: str = "") -> str:
-    """HeyGen Avatar4 fallback — fotoğraf + script → video URL."""
-    voice_id = _pick_heygen_voice(relationship)
+    """HeyGen Avatar4 fallback."""
+    voice_id = _pick_voice(relationship, HEYGEN_VOICES)
     handle = await fal_client.submit_async(
         "fal-ai/heygen/avatar4/image-to-video",
         arguments={
             "image_url": image_url,
             "prompt": script,
-            "voice": "Derya - Lifelike - Excited 🤩",
             "voice_id": voice_id,
             "talking_style": "expressive",
             "aspect_ratio": "9:16",
@@ -622,6 +736,11 @@ async def _heygen_clip(image_url: str, script: str, relationship: str = "") -> s
 
 
 async def _run_veo_pipeline(job_id: str):
+    """
+    2 x 8s Veo klibi uret, son kare gecisl ile birlestir → 16s final video.
+    Veo generate_audio=True: kendi sinematik sesini uretir.
+    Prompt tamamen Ingilizce, Turkce metin veya ozel karakter YOK.
+    """
     workdir = tempfile.mkdtemp(prefix=f"veo-{job_id}-")
     try:
         await db.video_jobs.update_one({"id": job_id}, {"$set": {"status": "generating", "progress": 0}})
@@ -634,24 +753,18 @@ async def _run_veo_pipeline(job_id: str):
             await db.video_jobs.update_one({"id": job_id}, {"$set": {"status": "failed", "error": "photo missing"}})
             return
         form = await db.memory_forms.find_one({"photo_id": job["photo_id"]}, {"_id": 0}, sort=[("created_at", -1)])
-        full_script = (form or {}).get("full_script") or "Merhaba, seni çok özledim."
+        full_script = (form or {}).get("full_script") or "Merhaba, seni cok ozledim."
         relationship = (form or {}).get("relationship", "")
 
+        # Baslangic fotografını kaydet ve yukle
         start_path = os.path.join(workdir, "start.png")
         with open(start_path, "wb") as f:
             f.write(_b64.b64decode(photo["noir_b64"]))
         ref_url = await fal_client.upload_file_async(start_path)
-        logger.info(f"[veo {job_id}] start frame uploaded {ref_url}")
-
-        sentences = [s.strip() for s in full_script.replace("…", ".").split(".") if s.strip()]
-        per = max(1, len(sentences) // NUM_CLIPS)
-        chunks = [". ".join(sentences[i*per:(i+1)*per]) + "." for i in range(NUM_CLIPS - 1)]
-        chunks.append(". ".join(sentences[(NUM_CLIPS-1)*per:]) + ".")
-
-        clip_paths: List[str] = []
-        current_ref = ref_url
+        logger.info(f"[veo {job_id}] Baslangic karesi yuklendi: {ref_url}")
 
         import random
+
         LIGHTINGS = [
             "dramatic warm golden rim light from the right, soft fill from the left, ",
             "strong side key light with warm amber tone, deep shadow on opposite side, ",
@@ -665,30 +778,59 @@ async def _run_veo_pipeline(job_id: str):
             "The person faces the camera with a quiet, loving, emotional expression. ",
         ]
         MOVEMENTS = [
-            "Subtle natural lip sync matching the spoken line, slow blinks, intimate medium close-up, soft film grain. ",
+            "Subtle natural lip sync as if speaking quietly, slow blinks, intimate medium close-up, soft film grain. ",
             "Gentle lip movement, soft natural blinks, warm close-up, cinematic film grain. ",
             "Natural speech movement, slow blinks, medium close-up, vintage film texture. ",
-            "Subtle mouth movement matching the words, intimate close-up, slow blinks. ",
+            "Subtle mouth movement, intimate close-up, slow blinks. ",
         ]
-        lighting = random.choice(LIGHTINGS)
-        expression = random.choice(EXPRESSIONS)
-        movement = random.choice(MOVEMENTS)
 
-        for i, line in enumerate(chunks):
+        # Script'i klip sayisina gore esit parcalara bol
+        sentences = [s.strip() for s in full_script.replace("...", ".").split(".") if s.strip()]
+        per = max(1, len(sentences) // NUM_CLIPS)
+        chunks = [". ".join(sentences[i * per:(i + 1) * per]) for i in range(NUM_CLIPS - 1)]
+        chunks.append(". ".join(sentences[(NUM_CLIPS - 1) * per:]))
+
+        clip_paths: List[str] = []
+        current_ref = ref_url
+
+        for i in range(NUM_CLIPS):
+            lighting = random.choice(LIGHTINGS)
+            expression = random.choice(EXPRESSIONS)
+            movement = random.choice(MOVEMENTS)
+
+            # Kac kelime soylendigi bilgisini gecir — Turkce metni degil, sadece uzunluk ve dil talimatı
+            word_count = len(chunks[i].split()) if chunks[i] else 10
+            duration_hint = "slowly and warmly" if word_count < 15 else "with natural pacing"
+
             prompt = (
-                "Cinematic studio portrait, PURE BLACK BACKGROUND — no environment, no room, no objects, only black. " +
-                lighting +
-                "CRITICAL — preserve the exact age, face, identity, hair, skin and "
-                "clothing of the person shown in the reference image. DO NOT age, "
-                "rejuvenate, stylize or alter their appearance in any way; they must "
-                "look identical in age to the reference. " +
-                expression +
-                movement +
-                f'Speaks softly in Turkish: "{line.strip()}". '
-                "Static camera; no zoom, no pan; preserve the reference face one-to-one."
+                "Cinematic studio portrait. Pure black background, no environment, no room, no objects. "
+                + lighting
+                + "Preserve the exact age, face, identity, hair, skin and clothing of the person "
+                "in the reference image. Do not alter their appearance in any way. "
+                + expression
+                + f"The person is speaking in Turkish language, {duration_hint}, "
+                f"approximately {word_count} words, sincere and emotional tone. "
+                + movement
+                + "Static camera, no zoom, no pan."
             )
-            video_url = await _veo_clip(current_ref, prompt)
-            logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok")
+
+            logger.info(f"[veo {job_id}] Klip {i+1}/{NUM_CLIPS} basliyor...")
+            try:
+                video_url = await _veo_clip(current_ref, prompt)
+                logger.info(f"[veo {job_id}] Klip {i+1} tamamlandi: {video_url}")
+            except Exception as veo_err:
+                logger.warning(f"[veo {job_id}] Veo basarisiz, HeyGen fallback: {veo_err}")
+                try:
+                    video_url = await _heygen_clip(current_ref, full_script, relationship)
+                    logger.info(f"[veo {job_id}] HeyGen fallback basarili")
+                except Exception as hg_err:
+                    logger.error(f"[veo {job_id}] HeyGen de basarisiz: {hg_err}")
+                    await db.video_jobs.update_one(
+                        {"id": job_id},
+                        {"$set": {"status": "failed", "error": f"Veo: {veo_err} | HeyGen: {hg_err}"}}
+                    )
+                    return
+
             clip_local = os.path.join(workdir, f"c{i}.mp4")
             await asyncio.to_thread(_http_download, video_url, clip_local)
             clip_paths.append(clip_local)
@@ -698,28 +840,35 @@ async def _run_veo_pipeline(job_id: str):
                 {"$set": {"progress": int((i + 1) / NUM_CLIPS * 90)}},
             )
 
+            # Sonraki klip icin son kareyi gecis noktasi olarak kullan
             if i < NUM_CLIPS - 1:
                 next_frame = os.path.join(workdir, f"f{i}.png")
                 await asyncio.to_thread(_ffmpeg_last_frame, clip_local, next_frame)
                 current_ref = await fal_client.upload_file_async(next_frame)
+                logger.info(f"[veo {job_id}] Gecis karesi yuklendi: {current_ref}")
 
+        # Klipleri birlestir (ses dahil, Veo tarafindan uretildi)
         final_local = os.path.join(workdir, "final.mp4")
         await asyncio.to_thread(_ffmpeg_concat, clip_paths, final_local)
+        logger.info(f"[veo {job_id}] Klipler birlestirildi")
+
         final_url = await fal_client.upload_file_async(final_local)
-        logger.info(f"[veo {job_id}] final uploaded {final_url}")
+        logger.info(f"[veo {job_id}] Final yuklendi: {final_url}")
 
         await db.video_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "ready", "media_url": final_url, "kind": "video", "progress": 100}},
         )
     except Exception as e:
-        logger.exception(f"[veo {job_id}] failed")
+        logger.exception(f"[veo {job_id}] Pipeline hatasi")
         await db.video_jobs.update_one(
             {"id": job_id}, {"$set": {"status": "failed", "error": str(e)[:500]}}
         )
     finally:
-        try: shutil.rmtree(workdir, ignore_errors=True)
-        except Exception: pass
+        try:
+            shutil.rmtree(workdir, ignore_errors=True)
+        except Exception:
+            pass
 
 
 # ---------- Video job lifecycle ----------
@@ -727,9 +876,9 @@ async def _run_veo_pipeline(job_id: str):
 async def request_video(body: VideoRequestBody):
     photo = await db.photos.find_one({"id": body.photo_id}, {"_id": 0})
     if not photo:
-        raise HTTPException(status_code=404, detail="Fotoğraf bulunamadı")
+        raise HTTPException(status_code=404, detail="Fotograf bulunamadi")
     if photo.get("status") != "ready":
-        raise HTTPException(status_code=400, detail="Fotoğraf henüz hazır değil")
+        raise HTTPException(status_code=400, detail="Fotograf henuz hazir degil")
     job = VideoJob(photo_id=body.photo_id, user_email=body.user_email)
     await db.video_jobs.insert_one(job.model_dump())
     return job
@@ -738,10 +887,10 @@ async def request_video(body: VideoRequestBody):
 @api_router.post("/payment/dev-skip/{job_id}", response_model=VideoJobPublic)
 async def payment_dev_skip(job_id: str):
     if IYZICO_MODE == "production":
-        raise HTTPException(status_code=403, detail="Dev-skip is disabled in production")
+        raise HTTPException(status_code=403, detail="Dev-skip production'da devre disi")
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
-        raise HTTPException(status_code=404, detail="İş bulunamadı")
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
 
     if job.get("payment_status") == "paid":
         return VideoJobPublic(
@@ -752,7 +901,7 @@ async def payment_dev_skip(job_id: str):
 
     photo = await db.photos.find_one({"id": job["photo_id"]}, {"_id": 0})
     if not photo or not photo.get("noir_b64"):
-        raise HTTPException(status_code=400, detail="Fotoğraf hazır değil")
+        raise HTTPException(status_code=400, detail="Fotograf hazir degil")
 
     await db.video_jobs.update_one(
         {"id": job_id},
@@ -766,13 +915,13 @@ async def payment_dev_skip(job_id: str):
     already_ready = job.get("status") == "ready" and job.get("media_url")
     if not already_ready:
         asyncio.create_task(_run_veo_pipeline(job_id))
-        logger.info(f"[dev-skip] job {job_id} unlocked — Veo pipeline STARTED")
+        logger.info(f"[dev-skip] {job_id} acildi, Veo pipeline basladi")
         return VideoJobPublic(
             id=job_id, status="generating",
             payment_status="paid", media_url=None,
             kind="video", progress=0,
         )
-    logger.info(f"[dev-skip] job {job_id} unlocked — video already ready, reusing")
+    logger.info(f"[dev-skip] {job_id} zaten hazir, yeniden kullaniliyor")
     return VideoJobPublic(
         id=job_id, status=job.get("status", "ready"),
         payment_status="paid", media_url=job.get("media_url"),
@@ -784,13 +933,13 @@ async def payment_dev_skip(job_id: str):
 async def payment_initiate(body: PaymentInitiateBody, request: Request):
     job = await db.video_jobs.find_one({"id": body.job_id}, {"_id": 0})
     if not job:
-        raise HTTPException(status_code=404, detail="İş bulunamadı")
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
     if job.get("payment_status") == "paid":
-        raise HTTPException(status_code=400, detail="Zaten ödenmiş")
+        raise HTTPException(status_code=400, detail="Zaten odenmis")
 
     photo = await db.photos.find_one({"id": job["photo_id"]}, {"_id": 0})
     if not photo or not photo.get("noir_b64"):
-        raise HTTPException(status_code=400, detail="Fotoğraf hazır değil")
+        raise HTTPException(status_code=400, detail="Fotograf hazir degil")
 
     conversation_id = str(uuid.uuid4())
     buyer_ip = (request.client.host if request.client else None) or "85.34.78.112"
@@ -846,7 +995,7 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
         "basketItems": [
             {
                 "id": body.job_id,
-                "name": "HatırAI Sinematik Canlandırma",
+                "name": "HatirAI Sinematik Canlandirma",
                 "category1": "Dijital Icerik",
                 "itemType": "VIRTUAL",
                 "price": "99.00",
@@ -859,10 +1008,10 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
         data = _json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         logger.exception("[iyzico] initialize failed")
-        raise HTTPException(status_code=502, detail=f"Iyzico hatası: {e}")
+        raise HTTPException(status_code=502, detail=f"Iyzico hatasi: {e}")
 
     if data.get("status") != "success":
-        err = data.get("errorMessage") or "Bilinmeyen Iyzico hatası"
+        err = data.get("errorMessage") or "Bilinmeyen Iyzico hatasi"
         logger.error(f"[iyzico] initialize non-success: {data}")
         raise HTTPException(status_code=400, detail=err)
 
@@ -899,7 +1048,7 @@ async def _finalize_job_by_token(token: str) -> Optional[dict]:
         return None
 
     if data.get("status") != "success" or data.get("paymentStatus") != "SUCCESS":
-        logger.warning(f"[iyzico] payment not successful: status={data.get('status')} paymentStatus={data.get('paymentStatus')}")
+        logger.warning(f"[iyzico] odeme basarisiz: status={data.get('status')} paymentStatus={data.get('paymentStatus')}")
         job = await db.video_jobs.find_one({"iyzico_token": token}, {"_id": 0})
         if job:
             await db.video_jobs.update_one(
@@ -910,7 +1059,7 @@ async def _finalize_job_by_token(token: str) -> Optional[dict]:
 
     job = await db.video_jobs.find_one({"iyzico_token": token}, {"_id": 0})
     if not job:
-        logger.error("[iyzico] job not found for token")
+        logger.error("[iyzico] token icin job bulunamadi")
         return data
 
     photo = await db.photos.find_one({"id": job["photo_id"]}, {"_id": 0})
@@ -928,9 +1077,9 @@ async def _finalize_job_by_token(token: str) -> Optional[dict]:
     already_ready = job.get("status") == "ready" and job.get("media_url")
     if not already_ready:
         asyncio.create_task(_run_veo_pipeline(job["id"]))
-        logger.info(f"[iyzico] job {job['id']} paid (paymentId={data.get('paymentId')}) — Veo pipeline STARTED")
+        logger.info(f"[iyzico] job {job['id']} odendi, Veo pipeline basladi")
     else:
-        logger.info(f"[iyzico] job {job['id']} paid (paymentId={data.get('paymentId')}) — video already ready")
+        logger.info(f"[iyzico] job {job['id']} odendi, video zaten hazir")
     return data
 
 
@@ -941,16 +1090,16 @@ async def payment_callback_post(request: Request):
     result = await _finalize_job_by_token(token) if token else None
 
     ok = bool(result and result.get("paymentStatus") == "SUCCESS")
-    title = "Ödeme Başarılı" if ok else "Ödeme Başarısız"
+    title = "Odeme Basarili" if ok else "Odeme Basarisiz"
     color = "#C9A961" if ok else "#E59A9A"
     body_msg = (
-        "Uygulamaya geri dönebilirsiniz. İçeriğiniz hazır."
+        "Uygulamaya geri donebilirsiniz. Icerik hazir."
         if ok else
-        "Ödeme tamamlanamadı. Uygulamaya dönün ve tekrar deneyin."
+        "Odeme tamamlanamadi. Uygulamaya donun ve tekrar deneyin."
     )
     html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>HatırAI · {title}</title>
+<title>HatirAI - {title}</title>
 <style>
  body{{margin:0;background:#000;color:#F4F1EA;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}}
  .c{{max-width:420px}}
@@ -961,7 +1110,7 @@ async def payment_callback_post(request: Request):
 <body><div class="c">
  <h1>{title}</h1>
  <p>{body_msg}</p>
- <p class="mono">HATIRAI · SİNEMATİK GALERİ</p>
+ <p class="mono">HATIRAI - SINEMATIK GALERI</p>
 </div>
 <script>setTimeout(()=>{{try{{window.close()}}catch(e){{}}}},4000)</script>
 </body></html>"""
@@ -973,11 +1122,11 @@ async def payment_callback_get(token: Optional[str] = None):
     result = await _finalize_job_by_token(token) if token else None
     ok = bool(result and result.get("paymentStatus") == "SUCCESS")
     color = "#C9A961" if ok else "#E59A9A"
-    title = "Ödeme Başarılı" if ok else "Ödeme Başarısız"
+    title = "Odeme Basarili" if ok else "Odeme Basarisiz"
     html = (
         "<html><body style='background:#000;color:#fff;font-family:serif;text-align:center;padding:80px'>"
         f"<h1 style='color:{color}'>{title}</h1>"
-        "<p>Uygulamaya dönebilirsiniz.</p></body></html>"
+        "<p>Uygulamaya donebilirsiniz.</p></body></html>"
     )
     return HTMLResponse(content=html)
 
@@ -1004,12 +1153,12 @@ async def payment_webhook(request: Request):
             _hashlib.sha256,
         ).hexdigest()
         if sig_header and sig_header.lower() != expected.lower():
-            logger.warning("[iyzico-webhook] signature mismatch")
+            logger.warning("[iyzico-webhook] imza uyusmadi")
             raise HTTPException(status_code=401, detail="Invalid signature")
     except HTTPException:
         raise
     except Exception:
-        logger.exception("[iyzico-webhook] signature check error")
+        logger.exception("[iyzico-webhook] imza kontrolu hatasi")
 
     job = await db.video_jobs.find_one({"iyzico_conversation_id": cid}, {"_id": 0})
     if job and st == "SUCCESS":
@@ -1022,7 +1171,7 @@ async def payment_webhook(request: Request):
 async def get_video(job_id: str):
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
-        raise HTTPException(status_code=404, detail="İş bulunamadı")
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
     return VideoJobPublic(
         id=job["id"],
         status=job.get("status", "pending_payment"),
@@ -1056,12 +1205,13 @@ _login_attempts: dict = defaultdict(list)
 _RATE_LIMIT_MAX = 10
 _RATE_LIMIT_WINDOW = 300
 
+
 def _check_rate_limit(ip: str):
     now = time.time()
     attempts = [t for t in _login_attempts[ip] if now - t < _RATE_LIMIT_WINDOW]
     _login_attempts[ip] = attempts
     if len(attempts) >= _RATE_LIMIT_MAX:
-        raise HTTPException(status_code=429, detail="Çok fazla deneme. 5 dakika bekleyin.")
+        raise HTTPException(status_code=429, detail="Cok fazla deneme. 5 dakika bekleyin.")
     _login_attempts[ip].append(now)
 
 
@@ -1076,11 +1226,11 @@ class ResetPasswordBody(BaseModel):
 
 @api_router.post("/auth/forgot-password")
 async def forgot_password(body: ForgotPasswordBody):
-    import hashlib, secrets
+    import secrets
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user:
-        return {"message": "Eğer bu email kayıtlıysa sıfırlama linki gönderildi."}
+        return {"message": "Eger bu email kayitliysa sifirlama linki gonderildi."}
     token = secrets.token_urlsafe(32)
     expires = datetime.now(timezone.utc) + timedelta(hours=1)
     await db.password_resets.insert_one({
@@ -1094,42 +1244,42 @@ async def forgot_password(body: ForgotPasswordBody):
     if RESEND_API_KEY:
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(
+            async with httpx.AsyncClient(timeout=10) as hc:
+                resp = await hc.post(
                     "https://api.resend.com/emails",
                     headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
                     json={
-                        "from": "HatırAI <noreply@hatirai.com>",
+                        "from": "HatirAI <noreply@hatirai.com>",
                         "to": [email],
-                        "subject": "Şifre Sıfırlama — HatırAI",
+                        "subject": "Sifre Sifirlama - HatirAI",
                         "html": f"""
                         <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;">
                           <h1 style="color:#C9A961;font-size:32px;letter-spacing:4px;margin-bottom:8px;">HATIR<span style="color:#E8E0D0;">AI</span></h1>
                           <hr style="border-color:#1E1C18;margin:24px 0;">
-                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Şifrenizi sıfırlamak için aşağıdaki butona tıklayın. Link 1 saat geçerlidir.</p>
-                          <a href="{reset_url}" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">ŞİFREYİ SIFIRLA</a>
-                          <p style="font-size:11px;color:#4A4540;">Bu isteği siz yapmadıysanız bu emaili görmezden gelin.</p>
+                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Sifrenizi sifirlamak icin asagidaki butona tiklayin. Link 1 saat gecerlidir.</p>
+                          <a href="{reset_url}" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">SIFREYI SIFIRLA</a>
+                          <p style="font-size:11px;color:#4A4540;">Bu istegi siz yapmadıysaniz bu emaili gormezden gelin.</p>
                         </div>
                         """
                     }
                 )
-                logger.info(f"[resend] status={resp.status_code} body={resp.text[:200]}")
+                logger.info(f"[resend] status={resp.status_code}")
         except Exception as e:
-            logger.error(f"[resend] Email gönderilemedi: {e}")
-    return {"message": "Eğer bu email kayıtlıysa sıfırlama linki gönderildi."}
+            logger.error(f"[resend] Email gonderilemedi: {e}")
+    return {"message": "Eger bu email kayitliysa sifirlama linki gonderildi."}
 
 
 @api_router.post("/auth/reset-password")
 async def reset_password(body: ResetPasswordBody):
     record = await db.password_resets.find_one({"token": body.token, "used": False})
     if not record:
-        raise HTTPException(status_code=400, detail="Geçersiz veya süresi dolmuş link.")
+        raise HTTPException(status_code=400, detail="Gecersiz veya suresi dolmus link.")
     if record["expires_at"].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Link süresi dolmuş.")
+        raise HTTPException(status_code=400, detail="Link suresi dolmus.")
     pw_hash = pwd_context.hash(body.password)
     await db.users.update_one({"email": record["email"]}, {"$set": {"pw_hash": pw_hash}})
     await db.password_resets.update_one({"token": body.token}, {"$set": {"used": True}})
-    return {"message": "Şifreniz başarıyla güncellendi."}
+    return {"message": "Sifreniz basariyla guncellendi."}
 
 
 @api_router.post("/auth/register")
@@ -1137,12 +1287,12 @@ async def auth_register(body: EmailRegisterBody, request: Request):
     _check_rate_limit(request.client.host)
     email = body.email.lower().strip()
     if not email or not body.password:
-        raise HTTPException(status_code=400, detail="Email ve şifre gerekli")
+        raise HTTPException(status_code=400, detail="Email ve sifre gerekli")
     if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalı")
+        raise HTTPException(status_code=400, detail="Sifre en az 6 karakter olmali")
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
-        raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı")
+        raise HTTPException(status_code=400, detail="Bu email zaten kayitli")
     pw_hash = pwd_context.hash(body.password)
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     await db.users.insert_one({
@@ -1159,27 +1309,27 @@ async def auth_register(body: EmailRegisterBody, request: Request):
     if RESEND_API_KEY:
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(
+            async with httpx.AsyncClient(timeout=10) as hc:
+                await hc.post(
                     "https://api.resend.com/emails",
                     headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
                     json={
-                        "from": "HatırAI <noreply@hatirai.com>",
+                        "from": "HatirAI <noreply@hatirai.com>",
                         "to": [email],
-                        "subject": "HatırAI'ya Hoş Geldiniz",
+                        "subject": "HatirAI'ya Hos Geldiniz",
                         "html": f"""
                         <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;">
                           <h1 style="color:#C9A961;font-size:32px;letter-spacing:4px;margin-bottom:8px;">HATIR<span style="color:#E8E0D0;">AI</span></h1>
                           <hr style="border-color:#1E1C18;margin:24px 0;">
                           <p style="font-size:16px;line-height:1.8;color:#9C9A93;">Merhaba {body.name.strip()},</p>
-                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">HatırAI'ya hoş geldiniz. Artık yakınlarınızın anılarını sinematik videolara dönüştürebilirsiniz.</p>
-                          <a href="https://hatirai.com" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">UYGULAMAYA GİT</a>
+                          <p style="font-size:16px;line-height:1.8;color:#9C9A93;">HatirAI'ya hos geldiniz. Artik yakinlarinizin anilari ni sinematik videolara donusturebilirsiniz.</p>
+                          <a href="https://hatirai.com" style="display:inline-block;background:#C9A961;color:#080808;font-family:monospace;font-size:12px;letter-spacing:3px;padding:16px 32px;text-decoration:none;margin:32px 0;">UYGULAMAYA GIT</a>
                         </div>
                         """
                     }
                 )
         except Exception as e:
-            logger.warning(f"[register] Hoşgeldin maili gönderilemedi: {e}")
+            logger.warning(f"[register] Hosgeldin maili gonderilemedi: {e}")
     return {
         "session_token": session_token,
         "user": {"user_id": user_id, "email": email, "name": body.name.strip(), "picture": None},
@@ -1193,7 +1343,7 @@ async def auth_login(body: EmailLoginBody, request: Request):
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not pwd_context.verify(body.password, user.get("pw_hash", "")):
-        raise HTTPException(status_code=401, detail="Email veya şifre hatalı")
+        raise HTTPException(status_code=401, detail="Email veya sifre hatali")
     session_token = uuid.uuid4().hex
     expires = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.insert_one({
@@ -1230,14 +1380,14 @@ async def auth_session(body: AuthSessionBody):
         r.raise_for_status()
         data = r.json()
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Oturum doğrulanamadı: {e}")
+        raise HTTPException(status_code=401, detail=f"Oturum dogrulanamadi: {e}")
 
     email = (data.get("email") or "").lower().strip()
     name = data.get("name") or "Anonim"
     picture = data.get("picture")
     session_token = data.get("session_token") or str(uuid.uuid4())
     if not email:
-        raise HTTPException(status_code=401, detail="Email alınamadı")
+        raise HTTPException(status_code=401, detail="Email alinamadi")
 
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
@@ -1265,10 +1415,78 @@ async def auth_session(body: AuthSessionBody):
     }
 
 
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "administrator@hatirai.com")
+
+
+def _is_admin_user(user: dict) -> bool:
+    """Kullanicinin administrator olup olmadigini kontrol et."""
+    return (
+        user.get("is_admin") is True
+        or user.get("email", "").lower().strip() == ADMIN_EMAIL.lower().strip()
+    )
+
+
 @api_router.get("/auth/me")
 async def auth_me(user: dict = Depends(require_user)):
-    return {"user_id": user["user_id"], "email": user["email"],
-            "name": user["name"], "picture": user.get("picture")}
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "picture": user.get("picture"),
+        "is_admin": _is_admin_user(user),  # frontend admin butonunu bununla gosterir
+    }
+
+
+@api_router.post("/payment/admin-free/{job_id}")
+async def admin_free_video(job_id: str, user: dict = Depends(require_user)):
+    """
+    Sadece administrator hesabina acik: odeme olmadan direkt Veo pipeline baslatir.
+    Frontend'de is_admin=true olan kullaniciya ozel buton ile cagirilir.
+    """
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Bu islem sadece administrator hesabina aciktir.")
+
+    job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
+
+    photo = await db.photos.find_one({"id": job["photo_id"]}, {"_id": 0})
+    if not photo or not photo.get("noir_b64"):
+        raise HTTPException(status_code=400, detail="Fotograf hazir degil")
+
+    # Zaten uretiliyorsa tekrar baslatma
+    if job.get("status") == "generating":
+        return VideoJobPublic(
+            id=job_id, status="generating",
+            payment_status=job.get("payment_status", "unpaid"),
+            media_url=None, kind="video", progress=int(job.get("progress") or 0),
+        )
+
+    # Zaten hazirsa direkt dondur
+    if job.get("status") == "ready" and job.get("media_url"):
+        return VideoJobPublic(
+            id=job_id, status="ready",
+            payment_status=job.get("payment_status", "unpaid"),
+            media_url=job.get("media_url"), kind="video", progress=100,
+        )
+
+    # Odeme flagini set et ve pipeline'i baslat
+    await db.video_jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "payment_status": "paid",
+            "iyzico_payment_id": f"ADMIN_FREE_{user['user_id']}",
+            "iyzico_paid_price": "0.00",
+        }},
+    )
+    asyncio.create_task(_run_veo_pipeline(job_id))
+    logger.info(f"[admin-free] job={job_id} admin={user['email']} → Veo pipeline basladi")
+
+    return VideoJobPublic(
+        id=job_id, status="generating",
+        payment_status="paid", media_url=None,
+        kind="video", progress=0,
+    )
 
 
 @api_router.post("/auth/logout")
@@ -1326,17 +1544,17 @@ async def lemonsqueezy_init(request: Request):
 
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
         if not job:
-            raise HTTPException(status_code=404, detail="Job bulunamadı")
+            raise HTTPException(status_code=404, detail="Job bulunamadi")
 
         if job.get("payment_status") == "paid":
-            raise HTTPException(status_code=400, detail="Zaten ödendi")
+            raise HTTPException(status_code=400, detail="Zaten odendi")
 
         api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
         variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID", "")
         store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
 
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
                 "https://api.lemonsqueezy.com/v1/checkouts",
                 headers={
                     "Authorization": f"Bearer {api_key}",
@@ -1348,21 +1566,15 @@ async def lemonsqueezy_init(request: Request):
                         "type": "checkouts",
                         "attributes": {
                             "checkout_data": {
-                                "custom": {
-                                    "job_id": job_id,
-                                }
+                                "custom": {"job_id": job_id}
                             },
                             "product_options": {
                                 "redirect_url": f"{PUBLIC_BACKEND_URL}/result?id={job.get('photo_id', '')}&job={job_id}",
                             }
                         },
                         "relationships": {
-                            "store": {
-                                "data": {"type": "stores", "id": store_id}
-                            },
-                            "variant": {
-                                "data": {"type": "variants", "id": variant_id}
-                            }
+                            "store": {"data": {"type": "stores", "id": store_id}},
+                            "variant": {"data": {"type": "variants", "id": variant_id}}
                         }
                     }
                 }
@@ -1394,12 +1606,10 @@ async def lemonsqueezy_webhook(request: Request):
                 hashlib.sha256
             ).hexdigest()
             if not hmac.compare_digest(expected, signature):
-                logger.warning("[lemonsqueezy] İmza doğrulaması başarısız")
+                logger.warning("[lemonsqueezy] Imza dogrulamasi basarisiz")
                 raise HTTPException(status_code=401, detail="Invalid signature")
 
         data = await request.json()
-        logger.info(f"[lemonsqueezy] webhook geldi: {data.get('meta', {}).get('event_name')}")
-
         event = data.get("meta", {}).get("event_name", "")
         if event != "order_created":
             return {"status": "ignored"}
@@ -1409,29 +1619,20 @@ async def lemonsqueezy_webhook(request: Request):
         status = attrs.get("status", "")
 
         if status != "paid":
-            logger.warning(f"[lemonsqueezy] Ödeme durumu: {status}")
             return {"status": "ignored"}
 
         meta = data.get("meta", {})
         custom_data = meta.get("custom_data", {})
-        job_id = custom_data.get("job_id", "")
+        job_id = custom_data.get("job_id", "") or attrs.get("notes", "")
 
         if not job_id:
-            job_id = attrs.get("notes", "")
-
-        logger.info(f"[lemonsqueezy] job_id={job_id} status={status}")
-
-        if not job_id:
-            logger.error("[lemonsqueezy] job_id bulunamadı")
+            logger.error("[lemonsqueezy] job_id bulunamadi")
             return {"status": "error", "detail": "job_id missing"}
 
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
         if not job:
-            logger.error(f"[lemonsqueezy] Job bulunamadı: {job_id}")
             return {"status": "error", "detail": "job not found"}
-
         if job.get("payment_status") == "paid":
-            logger.info(f"[lemonsqueezy] Zaten ödendi: {job_id}")
             return {"status": "already_paid"}
 
         await db.video_jobs.update_one(
@@ -1442,9 +1643,8 @@ async def lemonsqueezy_webhook(request: Request):
                 "paid_at": datetime.now(timezone.utc),
             }}
         )
-
         asyncio.create_task(_run_veo_pipeline(job_id))
-        logger.info(f"[lemonsqueezy] ✅ Ödeme işlendi, veo başlatıldı: {job_id}")
+        logger.info(f"[lemonsqueezy] Odeme islendi, pipeline basladi: {job_id}")
         return {"status": "ok"}
 
     except HTTPException:
@@ -1456,7 +1656,7 @@ async def lemonsqueezy_webhook(request: Request):
 
 @api_router.post("/payment/shopier-init")
 async def shopier_init(request: Request):
-    import hashlib, hmac, time
+    import hashlib, hmac, time as _time
     try:
         body = await request.json()
         job_id = body.get("job_id")
@@ -1465,41 +1665,37 @@ async def shopier_init(request: Request):
 
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
         if not job:
-            raise HTTPException(status_code=404, detail="Job bulunamadı")
-
+            raise HTTPException(status_code=404, detail="Job bulunamadi")
         if job.get("payment_status") == "paid":
-            raise HTTPException(status_code=400, detail="Zaten ödendi")
+            raise HTTPException(status_code=400, detail="Zaten odendi")
 
         api_key = os.environ.get("SHOPIER_API_KEY", "")
         api_secret = os.environ.get("SHOPIER_API_SECRET", "")
-
-        random_nr = str(int(time.time()))
-
+        random_nr = str(int(_time.time()))
         data = random_nr + job_id + "99.00" + "0"
         signature = hmac.new(
             api_secret.encode('utf-8'),
             data.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
-
         callback_url = f"{PUBLIC_BACKEND_URL}/api/payment/shopier-callback?job_id={job_id}"
 
         params = {
             "API_key": api_key,
             "website_index": "1",
             "platform_order_id": job_id,
-            "product_name": "HatırAI Sinematik Video",
+            "product_name": "HatirAI Sinematik Video",
             "product_type": "2",
-            "buyer_name": "Müşteri",
+            "buyer_name": "Musteri",
             "buyer_surname": "",
             "buyer_email": "musteri@hatirai.com",
             "buyer_phone": "5000000000",
-            "buyer_address": "İstanbul",
-            "buyer_city": "İstanbul",
+            "buyer_address": "Istanbul",
+            "buyer_city": "Istanbul",
             "buyer_country": "Turkey",
             "buyer_postcode": "34000",
-            "shipping_address": "İstanbul",
-            "shipping_city": "İstanbul",
+            "shipping_address": "Istanbul",
+            "shipping_city": "Istanbul",
             "shipping_country": "Turkey",
             "shipping_postcode": "34000",
             "total_order_value": "99.00",
@@ -1508,7 +1704,6 @@ async def shopier_init(request: Request):
             "signature": signature,
             "callback": callback_url,
         }
-
         return {"params": params, "action": "https://www.shopier.com/ShowProduct/api_pay4.php"}
 
     except HTTPException:
@@ -1522,7 +1717,7 @@ async def shopier_init(request: Request):
 async def shopier_callback(job_id: str, request: Request):
     params = dict(request.query_params)
     status = params.get("status", "")
-    logger.info(f"[shopier-callback] job_id={job_id} status={status} params={params}")
+    logger.info(f"[shopier-callback] job_id={job_id} status={status}")
 
     if status == "success":
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
@@ -1532,7 +1727,7 @@ async def shopier_callback(job_id: str, request: Request):
                 {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc)}}
             )
             asyncio.create_task(_run_veo_pipeline(job_id))
-            logger.info(f"[shopier-callback] ✅ Video başlatıldı: {job_id}")
+            logger.info(f"[shopier-callback] Video basladi: {job_id}")
 
     photo_id = ""
     if job_id:
@@ -1548,41 +1743,28 @@ async def shopier_callback(job_id: str, request: Request):
 
 @api_router.post("/payment/shopier-osb")
 async def shopier_osb(request: Request):
-    import hmac, hashlib
     try:
-        body = await request.body()
-        data = {}
         form = await request.form()
-        for key, value in form.items():
-            data[key] = value
-
+        data = {key: value for key, value in form.items()}
         logger.info(f"[shopier-osb] data={data}")
 
-        order_id = data.get("BILL_ORDER_ID", "")
         payment_status = data.get("STATUS", "")
+        order_id = data.get("BILL_ORDER_ID", "")
         platform_order_id = data.get("PLATFORM_ORDER_ID", "")
 
-        logger.info(f"[shopier-osb] order_id={order_id} status={payment_status}")
-
         if payment_status != "success":
-            logger.warning(f"[shopier-osb] Ödeme başarısız: {payment_status}")
             return {"status": "ignored"}
 
         job_id = order_id or platform_order_id
         if not job_id:
-            logger.error("[shopier-osb] job_id bulunamadı")
             return {"status": "error", "detail": "job_id missing"}
 
         job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
         if not job:
             job = await db.video_jobs.find_one({"shopier_order_id": job_id}, {"_id": 0})
-
         if not job:
-            logger.error(f"[shopier-osb] Job bulunamadı: {job_id}")
             return {"status": "error", "detail": "job not found"}
-
         if job.get("payment_status") == "paid":
-            logger.info(f"[shopier-osb] Zaten ödendi: {job_id}")
             return {"status": "already_paid"}
 
         await db.video_jobs.update_one(
@@ -1593,9 +1775,8 @@ async def shopier_osb(request: Request):
                 "paid_at": datetime.now(timezone.utc),
             }}
         )
-
         asyncio.create_task(_run_veo_pipeline(job["id"]))
-        logger.info(f"[shopier-osb] ✅ Ödeme işlendi, veo başlatıldı: {job['id']}")
+        logger.info(f"[shopier-osb] Odeme islendi: {job['id']}")
         return {"status": "ok"}
 
     except Exception as e:
@@ -1607,33 +1788,32 @@ async def shopier_osb(request: Request):
 async def admin_test_payment(job_id: str, _: str = Depends(require_admin)):
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
-        raise HTTPException(status_code=404, detail="Job bulunamadı")
+        raise HTTPException(status_code=404, detail="Job bulunamadi")
     await db.video_jobs.update_one(
         {"id": job_id},
         {"$set": {"payment_status": "paid", "iyzico_payment_id": "test_payment"}}
     )
     asyncio.create_task(_run_veo_pipeline(job_id))
-    return {"message": f"Job {job_id} ödendi, video üretimi başladı"}
-
+    return {"message": f"Job {job_id} odendi, video uretimi basladi"}
 
 
 @api_router.post("/video/retry/{job_id}")
 async def retry_video(job_id: str):
-    """Başarısız bir video job'ını yeniden başlat."""
     job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
-        raise HTTPException(status_code=404, detail="İş bulunamadı")
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
     if job.get("payment_status") != "paid":
-        raise HTTPException(status_code=403, detail="Ödeme yapılmamış")
+        raise HTTPException(status_code=403, detail="Odeme yapilmamis")
     if job.get("status") == "generating":
-        return {"message": "Zaten üretiliyor"}
+        return {"message": "Zaten uretiliyor"}
     await db.video_jobs.update_one(
         {"id": job_id},
         {"$set": {"status": "generating", "progress": 0, "error": None, "media_url": None}}
     )
     asyncio.create_task(_run_veo_pipeline(job_id))
-    logger.info(f"[retry] job {job_id} yeniden başlatıldı")
-    return {"message": "Yeniden başlatıldı"}
+    logger.info(f"[retry] {job_id} yeniden basladi")
+    return {"message": "Yeniden baslatildi"}
+
 
 @api_router.get("/admin/jobs", response_model=List[VideoJob])
 async def admin_all(_: str = Depends(require_admin)):
@@ -1646,24 +1826,23 @@ async def admin_all(_: str = Depends(require_admin)):
 
 @api_router.post("/chat/heygen-token")
 async def heygen_token():
-    """LiveAvatar session token al."""
     import httpx
     api_key = os.environ.get("LIVEAVATAR_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="LIVEAVATAR_API_KEY eksik")
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
                 "https://api.liveavatar.com/v1/sessions/token",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
                 json={
                     "mode": "FULL",
                     "avatar_id": "fc4125a5-83fa-45e2-8574-bf657ac19998",
-                    "avatar_persona": "Sevilen bir yakın olarak konuş. Türkçe, sıcak ve samimi.",
+                    "avatar_persona": "Sevilen bir yakin olarak konus. Turkce, sicak ve samimi.",
                 },
                 timeout=15,
             )
-            logger.info(f"[heygen-token] response: {resp.status_code} {resp.text[:500]}")
+            logger.info(f"[heygen-token] {resp.status_code} {resp.text[:200]}")
             if resp.status_code == 200:
                 data = resp.json()
                 token = data.get("data", {}).get("session_token", "") or data.get("token", "")
@@ -1678,7 +1857,6 @@ async def heygen_token():
 
 @api_router.post("/chat/prepare")
 async def chat_prepare(request: Request):
-    """Fotoğrafı restore et, D-ID için hazırla."""
     import base64, httpx
     try:
         form = await request.form()
@@ -1686,13 +1864,11 @@ async def chat_prepare(request: Request):
         era = form.get("era", "modern")
 
         if not photo_file:
-            raise HTTPException(status_code=400, detail="Fotoğraf gerekli")
+            raise HTTPException(status_code=400, detail="Fotograf gerekli")
 
         photo_bytes = await photo_file.read()
         photo_b64 = base64.b64encode(photo_bytes).decode()
         should_restore = form.get("restore", "1") == "1"
-
-        import uuid
         photo_id = f"chat_{uuid.uuid4().hex[:8]}"
 
         if should_restore:
@@ -1705,7 +1881,15 @@ async def chat_prepare(request: Request):
             image_url = await fal_client.upload_file_async(tmp_path)
             handle = await fal_client.submit_async(
                 "fal-ai/nano-banana-2/edit",
-                arguments={"prompt": prompt, "image_urls": [image_url], "num_images": 1, "aspect_ratio": "auto", "output_format": "jpeg", "resolution": "1K", "safety_tolerance": "4"},
+                arguments={
+                    "prompt": prompt,
+                    "image_urls": [image_url],
+                    "num_images": 1,
+                    "aspect_ratio": "auto",
+                    "output_format": "jpeg",
+                    "resolution": "1K",
+                    "safety_tolerance": "4",
+                },
             )
             result = await handle.get()
 
@@ -1713,35 +1897,32 @@ async def chat_prepare(request: Request):
             if result.get("images"):
                 img_url = result["images"][0].get("url", "")
                 if img_url:
-                    async with httpx.AsyncClient() as client:
-                        r = await client.get(img_url, timeout=60)
+                    async with httpx.AsyncClient() as hc:
+                        r = await hc.get(img_url, timeout=60)
                         restored_b64 = base64.b64encode(r.content).decode()
 
             if not restored_b64:
                 restored_b64 = photo_b64
         else:
             restored_b64 = photo_b64
-            logger.info(f"[chat/prepare] Restore atlandı, hazır avatar kullanılıyor")
+            logger.info("[chat/prepare] Restore atlanidi")
 
         did_key = os.environ.get("DID_API_KEY", "")
         stream_data = None
-        logger.info(f"[chat/prepare] DID_API_KEY var mı: {bool(did_key)}, uzunluk: {len(did_key)}")
         if did_key:
             img_bytes = base64.b64decode(restored_b64)
             tmp_did = f"/tmp/did_{photo_id}.jpg"
             with open(tmp_did, "wb") as f:
                 f.write(img_bytes)
             photo_url = await fal_client.upload_file_async(tmp_did)
-            logger.info(f"[chat/prepare] Fotoğraf URL: {photo_url}")
 
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
+            async with httpx.AsyncClient() as hc:
+                resp = await hc.post(
                     "https://api.d-id.com/talks/streams",
                     headers={"Content-Type": "application/json", "Authorization": f"Basic {did_key}"},
                     json={"source_url": photo_url},
                     timeout=30,
                 )
-                logger.info(f"[chat/prepare] D-ID response: {resp.status_code} {resp.text[:200]}")
                 if resp.status_code == 200:
                     stream_data = resp.json()
 
@@ -1766,17 +1947,19 @@ async def chat_respond(request: Request):
     try:
         form = await request.form()
         person_name = form.get("person_name", "Sevgili")
-        relation = form.get("relation", "yakınınız")
+        relation = form.get("relation", "yakin")
         context = form.get("context", "")
-        user_text = form.get("user_text", "") or "Seni çok özledim"
+        user_text = form.get("user_text", "") or "Seni cok ozledim"
         voice_id = form.get("voice_id", "FYPltOzsM2n1UbqzX19d")
 
         import anthropic as ant
         ant_client = ant.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-        system_prompt = f"""Sen {person_name} adlı kişisin. Kullanıcının {relation}.
-Hakkında bilgi: {context}
-Kullanıcı sana konuşuyor. Sen o kişi gibi, Türkçe, kısa (1-2 cümle), samimi cevap ver.
-Asla yapay zeka olduğunu belirtme. Maksimum 2 cümle."""
+        system_prompt = (
+            f"Sen {person_name} adli kisisin. Kullanicinin {relation}. "
+            f"Hakkinda bilgi: {context} "
+            "Kullanici sana konusuyor. Sen o kisi gibi, Turkce, kisa (1-2 cumle), samimi cevap ver. "
+            "Asla yapay zeka oldugunu belirtme. Maksimum 2 cumle."
+        )
 
         message = await ant_client.messages.create(
             model="claude-sonnet-4-5-20250929",
@@ -1786,14 +1969,17 @@ Asla yapay zeka olduğunu belirtme. Maksimum 2 cümle."""
         )
         response_text = message.content[0].text
 
-        eleven_key = os.environ.get("ELEVENLABS_API_KEY", "")
         audio_b64 = None
-        if eleven_key:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
+        if ELEVENLABS_API_KEY:
+            async with httpx.AsyncClient() as hc:
+                resp = await hc.post(
                     f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-                    headers={"xi-api-key": eleven_key, "Content-Type": "application/json"},
-                    json={"text": response_text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
+                    headers={"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"},
+                    json={
+                        "text": response_text,
+                        "model_id": "eleven_multilingual_v2",
+                        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+                    },
                     timeout=30,
                 )
                 if resp.status_code == 200:
@@ -1808,11 +1994,10 @@ Asla yapay zeka olduğunu belirtme. Maksimum 2 cümle."""
 
 @api_router.get("/sohbet")
 async def sohbet_page():
-    from fastapi.responses import FileResponse
     sohbet_path = Path("/app/sohbet.html")
     if sohbet_path.exists():
         return FileResponse(sohbet_path)
-    raise HTTPException(status_code=404, detail="Sohbet sayfası bulunamadı")
+    raise HTTPException(status_code=404, detail="Sohbet sayfasi bulunamadi")
 
 
 # ===================== APP MOUNT =====================
@@ -1860,9 +2045,9 @@ if DIST_DIR.is_dir():
             return FileResponse(not_found, status_code=404)
         raise HTTPException(status_code=404)
 
-    logger.info(f"[static] Serving Expo web bundle from {DIST_DIR}")
+    logger.info(f"[static] Expo web bundle: {DIST_DIR}")
 else:
-    logger.info(f"[static] {DIST_DIR} not present — frontend served externally (preview mode)")
+    logger.info(f"[static] {DIST_DIR} yok, frontend dis sunucudan servis ediliyor")
 
 
 @app.on_event("shutdown")
