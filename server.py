@@ -1863,6 +1863,193 @@ async def admin_all(_: str = Depends(require_admin)):
     return [VideoJob(**i) for i in items]
 
 
+# ===================== SEEDANCE ANI VİDEOSU =====================
+
+# Konsept promptları — Türkçe kullanıcıya gösterilir, İngilizce Seedance'a gider
+SEEDANCE_CONCEPTS = {
+    "park": {
+        "label": "Parkta Oyun",
+        "emoji": "🌳",
+        "prompt": "@Image1 is playing joyfully in a sunny park with green grass and trees. "
+                  "Warm golden afternoon light, natural camera movement following the action, "
+                  "cheerful ambient sounds of nature and laughter. Cinematic, heartwarming.",
+    },
+    "aquapark": {
+        "label": "Aquaparkta Eğlence",
+        "emoji": "💦",
+        "prompt": "@Image1 is having fun at a water park, splashing in the water with big smiles. "
+                  "Bright summer sunlight, slow motion water droplets, excited joyful energy. "
+                  "Vibrant colors, sounds of water and laughter.",
+    },
+    "hayvanat": {
+        "label": "Hayvanat Bahçesi",
+        "emoji": "🦁",
+        "prompt": "@Image1 is exploring a zoo, looking at animals with wonder and excitement. "
+                  "Natural daylight, documentary-style camera following closely, "
+                  "ambient zoo sounds. Warm and curious atmosphere.",
+    },
+    "yelkenli": {
+        "label": "Yelkenlide Açılma",
+        "emoji": "⛵",
+        "prompt": "@Image1 is sailing on a beautiful yacht on calm blue waters. "
+                  "Golden hour sunlight reflecting on the sea, gentle breeze, "
+                  "wide cinematic shot then close-up, sounds of waves and wind. Peaceful and majestic.",
+    },
+    "kopuk_partisi": {
+        "label": "Köpük Partisi",
+        "emoji": "🫧",
+        "prompt": "@Image1 is dancing and laughing at an outdoor foam party, surrounded by bubbles and foam. "
+                  "Vibrant colorful lights, energetic music atmosphere, slow motion foam flying everywhere. "
+                  "Fun, youthful, euphoric energy.",
+    },
+    "kamp": {
+        "label": "Kamp Ateşi",
+        "emoji": "🏕️",
+        "prompt": "@Image1 is sitting around a cozy campfire in nature at night. "
+                  "Warm firelight glowing on the face, stars visible above, "
+                  "crackling fire sounds, intimate and nostalgic atmosphere. Cinematic close-up.",
+    },
+    "sahil": {
+        "label": "Sahilde Gün Batımı",
+        "emoji": "🌅",
+        "prompt": "@Image1 is walking barefoot on a sandy beach at sunset. "
+                  "Golden and pink sky reflecting on wet sand, gentle waves, "
+                  "slow motion hair in the breeze. Emotional, cinematic, serene.",
+    },
+    "kar": {
+        "label": "Kar Topu Savaşı",
+        "emoji": "❄️",
+        "prompt": "@Image1 is having a snowball fight in a snowy winter landscape, laughing and running. "
+                  "Soft snowflakes falling, cold breath visible in air, "
+                  "playful energy, warm winter clothing. Joyful and cinematic.",
+    },
+}
+
+
+class SeedanceJobModel(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    concept: str
+    status: str = "processing"
+    video_url: Optional[str] = None
+    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+async def _run_seedance(job_id: str, image_b64: str, concept: str):
+    """Seedance 2.0 ile anı videosu üret."""
+    try:
+        concept_data = SEEDANCE_CONCEPTS.get(concept, SEEDANCE_CONCEPTS["park"])
+        prompt = concept_data["prompt"]
+
+        # Görseli fal.ai'ye yükle
+        import tempfile as _tf
+        tmp = _tf.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp.write(_b64.b64decode(image_b64))
+        tmp.close()
+        image_url = await fal_client.upload_file_async(tmp.name)
+        os.unlink(tmp.name)
+        logger.info(f"[seedance {job_id}] Gorsel yuklendi: {image_url}")
+
+        handle = await fal_client.submit_async(
+            "bytedance/seedance-2.0/fast/reference-to-video",
+            arguments={
+                "prompt": prompt,
+                "image_urls": [image_url],
+                "resolution": "720p",
+                "duration": "8",
+                "aspect_ratio": "9:16",
+                "generate_audio": True,
+            },
+        )
+        result = await handle.get()
+        video_url = result["video"]["url"]
+        logger.info(f"[seedance {job_id}] Video hazir: {video_url}")
+
+        await db.seedance_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "ready", "video_url": video_url}},
+        )
+    except Exception as e:
+        logger.exception(f"[seedance {job_id}] Hata")
+        await db.seedance_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "failed", "error": str(e)[:500]}},
+        )
+
+
+@api_router.get("/seedance/concepts")
+async def seedance_concepts():
+    """Mevcut konseptleri döndür."""
+    return [
+        {"id": k, "label": v["label"], "emoji": v["emoji"]}
+        for k, v in SEEDANCE_CONCEPTS.items()
+    ]
+
+
+@api_router.post("/seedance/create")
+async def seedance_create(request: Request):
+    """Fotoğraf + konsept ile Seedance anı videosu başlat."""
+    if not FAL_KEY:
+        raise HTTPException(status_code=500, detail="FAL_KEY eksik")
+    try:
+        form = await request.form()
+        concept = form.get("concept", "park")
+        photo_file = form.get("photo")
+        photo_id = form.get("photo_id")  # mevcut photo_id varsa kullan
+
+        if photo_id:
+            # DB'den mevcut fotoğrafı al
+            photo_doc = await db.photos.find_one({"id": photo_id}, {"_id": 0})
+            if not photo_doc or not photo_doc.get("noir_b64"):
+                raise HTTPException(status_code=404, detail="Fotograf bulunamadi")
+            image_b64 = photo_doc["noir_b64"]
+        elif photo_file:
+            import base64 as _base64
+            photo_bytes = await photo_file.read()
+            image_b64 = _base64.b64encode(photo_bytes).decode()
+        else:
+            raise HTTPException(status_code=400, detail="Fotograf veya photo_id gerekli")
+
+        if concept not in SEEDANCE_CONCEPTS:
+            raise HTTPException(status_code=400, detail=f"Gecersiz konsept: {concept}")
+
+        job = SeedanceJobModel(concept=concept)
+        await db.seedance_jobs.insert_one(job.model_dump())
+        asyncio.create_task(_run_seedance(job.id, image_b64, concept))
+        logger.info(f"[seedance] job={job.id} concept={concept} basladi")
+
+        return {"job_id": job.id, "status": "processing"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[seedance/create] Hata")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/seedance/job/{job_id}")
+async def seedance_job_status(job_id: str):
+    """Seedance iş durumunu döndür."""
+    doc = await db.seedance_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
+    return {
+        "id": doc["id"],
+        "concept": doc.get("concept"),
+        "status": doc.get("status", "processing"),
+        "video_url": doc.get("video_url"),
+        "error": doc.get("error"),
+    }
+
+
+@api_router.get("/ani")
+async def ani_page():
+    """Anı videosu sayfası."""
+    ani_path = Path("/app/ani.html")
+    if ani_path.exists():
+        return FileResponse(ani_path)
+    raise HTTPException(status_code=404, detail="Ani sayfasi bulunamadi")
+
+
 # ===================== CHAT / LIVEAVATAR =====================
 
 @api_router.post("/chat/heygen-token")
