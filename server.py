@@ -458,19 +458,18 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
             max_tokens=100,
             system=(
                 "Sen Turkce konusan, sicak, sinematik, hafif duygusal bir senaryo yazarisin. "
-                "Verilen paylasilan aniyi, kayip bir yakinin hayalete benzeyen bir "
-                "selamlama videosunda soyleyecegi TEK bir cumleye donustur. "
-                "Cumle mutlaka karsidakinin adini icermeli. "
-                "En fazla 18 kelime. Kliseden kacin. Dokunaklı, kisisel bir ton kullan. "
-                "Sadece cumleyi dondur, baska hicbir sey yazma."
+                "Sana bir iliski, bir isim ve bir ani verilecek. "
+                "Fotodaki kisi (ornegin dede), video mesajinda karsi taraftaki kisiye (isim) hitap ediyor. "
+                "Fotodaki kisinin agzindan, karsi tarafin adini kullanarak, aniya atifta bulunan TEK bir cumle yaz. "
+                "En fazla 18 kelime. Kliseden kacin. Sadece cumleyi dondur."
             ),
             messages=[{
                 "role": "user",
                 "content": (
-                    f"Iliski: {relationship}\n"
-                    f"Karsı tarafa soyleyenin adi: {name}\n"
+                    f"Fotodaki kisinin kim oldugu: {relationship}\n"
+                    f"Konusulan kisinin adi (hitap edilecek): {name}\n"
                     f"Paylasilan ani: {last_memory}\n\n"
-                    f"Bu aniya atifta bulunan ve '{name}' adini iceren 1 cumle yaz."
+                    f"Fotodaki {relationship}, {name}'e hitap ederek bu aniya dair 1 cumle soylüyor."
                 )
             }]
         )
@@ -483,8 +482,8 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
 
 async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str) -> str:
     """
-    Claude ile aniya sadik, isim birden fazla gecen, dogal Turkce konusma metni uret.
-    Fallback: sabit sablonla doldur.
+    Fotodaki kisi (relationship), kullaniciya (name) hitap ederek konusuyor.
+    Claude aniya sadik, isim gecen dogal Turkce konusma metni uretir.
     """
     try:
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -495,21 +494,21 @@ async def _build_full_script(name: str, relationship: str, last_memory: Optional
             max_tokens=300,
             system=(
                 "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-                "Bir kisi sevdigi birine kisa bir video mesaji birakiyor. "
-                "Mesaj dogal, samimi, sinematik olmali. "
-                "Karsidakinin adini en az 2 kez kullan. "
-                "Verilen aniya mutlaka atifta bulun, kliseden kacin. "
-                "Toplam 60-80 kelime. Paragraf yok, tek akis. "
+                "Fotodaki kisi (ornegin dede), sevdigi birine kisa bir video mesaji birakiyor. "
+                "Mesaj fotodaki kisinin agzindan, karsi taraftaki kisinin adini kullanarak yazilmali. "
+                "Karsi tarafin adini en az 2 kez kullan. "
+                "Verilen aniya mutlaka atifta bulun. Kliseden kacin. "
+                "Toplam 50-70 kelime. Tek akis, paragraf yok. "
                 "Sadece konusma metnini yaz, hicbir aciklama ekleme."
             ),
             messages=[{
                 "role": "user",
                 "content": (
-                    f"Konusan kisinin adi: {name}\n"
-                    f"Iliski: {relationship}\n"
+                    f"Konusan kisinin kim oldugu: {relationship} (fotodaki kisi)\n"
+                    f"Konusulan kisinin adi: {name}\n"
                     f"Paylasilan ani: {memory_hint}\n"
                     f"Ilk cumle su olmali: {ai_sentence}\n\n"
-                    f"Bu bilgileri kullanarak {name} adina dogal bir video mesaji yaz."
+                    f"{relationship} olarak, {name}'e hitap eden dogal bir video mesaji yaz."
                 )
             }]
         )
