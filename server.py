@@ -1867,63 +1867,274 @@ async def admin_all(_: str = Depends(require_admin)):
 
 # Konsept promptları — Türkçe kullanıcıya gösterilir, İngilizce Seedance'a gider
 SEEDANCE_CONCEPTS = {
-    "park": {
-        "label": "Parkta Oyun",
-        "emoji": "🌳",
-        "prompt": "@Image1 is playing joyfully in a sunny park with green grass and trees. "
-                  "Warm golden afternoon light, natural camera movement following the action, "
-                  "cheerful ambient sounds of nature and laughter. Cinematic, heartwarming.",
-    },
+
+    # ── EĞLENCE ──────────────────────────────────────────────────────────
     "aquapark": {
-        "label": "Aquaparkta Eğlence",
+        "label": "Aquapark",
         "emoji": "💦",
-        "prompt": "@Image1 is having fun at a water park, splashing in the water with big smiles. "
-                  "Bright summer sunlight, slow motion water droplets, excited joyful energy. "
-                  "Vibrant colors, sounds of water and laughter.",
+        "prompt": (
+            "Cinematic multishot memory video. No dialogue, only music and ambient sound. "
+            "Upbeat summer pop music throughout. "
+            "[Shot 1 - Wide] {people} arrive at a massive water park entrance, laughing and pointing excitedly at the slides. Bright summer noon light, vibrant colors. "
+            "[Shot 2 - Slow motion] They slide down a giant water slide together, arms raised, water exploding around them, huge grins frozen in joy. "
+            "[Shot 3 - Close-up] Faces mid-splash, eyes wide with delight, water droplets catching sunlight like diamonds. "
+            "[Shot 4 - Wide] They float together on inflatable rings in a lazy river, golden afternoon light, relaxed and happy. "
+            "Warm color grade, handheld energy, feel-good summer film aesthetic."
+        ),
     },
-    "hayvanat": {
-        "label": "Hayvanat Bahçesi",
-        "emoji": "🦁",
-        "prompt": "@Image1 is exploring a zoo, looking at animals with wonder and excitement. "
-                  "Natural daylight, documentary-style camera following closely, "
-                  "ambient zoo sounds. Warm and curious atmosphere.",
+    "lunapark": {
+        "label": "Lunapark",
+        "emoji": "🎡",
+        "prompt": (
+            "Cinematic multishot memory video. No dialogue, only music and ambient sound. "
+            "Dreamy indie pop music throughout. "
+            "[Shot 1 - Wide] {people} walking hand in hand through a glowing fairground at night, colorful lights everywhere, ferris wheel spinning behind them. "
+            "[Shot 2 - Close-up] Sharing cotton candy, laughing, neon reflections in their eyes. "
+            "[Shot 3 - Slow motion] On the ferris wheel at the top, city lights below, looking at each other and smiling. "
+            "[Shot 4 - Wide] Walking away through the crowd, lights bokeh blurring beautifully behind them. "
+            "Warm golden and neon color grade, magical night atmosphere."
+        ),
     },
-    "yelkenli": {
-        "label": "Yelkenlide Açılma",
-        "emoji": "⛵",
-        "prompt": "@Image1 is sailing on a beautiful yacht on calm blue waters. "
-                  "Golden hour sunlight reflecting on the sea, gentle breeze, "
-                  "wide cinematic shot then close-up, sounds of waves and wind. Peaceful and majestic.",
+    "dans": {
+        "label": "Dans Sahnesi",
+        "emoji": "🕺",
+        "prompt": (
+            "Cinematic multishot music video. No dialogue, only energetic music. "
+            "Upbeat cinematic music throughout. "
+            "[Shot 1 - Wide] {people} in a stunning dance hall with dramatic lighting, facing each other ready to dance. "
+            "[Shot 2 - Dynamic] They begin dancing together, camera spinning around them, colorful stage lights sweeping. "
+            "[Shot 3 - Slow motion] A dramatic dip move, one holding the other, confetti falling around them. "
+            "[Shot 4 - Close-up] Their faces laughing joyfully mid-dance, pure happiness. "
+            "High contrast dramatic lighting, cinematic color grade, euphoric energy."
+        ),
     },
-    "kopuk_partisi": {
-        "label": "Köpük Partisi",
-        "emoji": "🫧",
-        "prompt": "@Image1 is dancing and laughing at an outdoor foam party, surrounded by bubbles and foam. "
-                  "Vibrant colorful lights, energetic music atmosphere, slow motion foam flying everywhere. "
-                  "Fun, youthful, euphoric energy.",
-    },
-    "kamp": {
-        "label": "Kamp Ateşi",
-        "emoji": "🏕️",
-        "prompt": "@Image1 is sitting around a cozy campfire in nature at night. "
-                  "Warm firelight glowing on the face, stars visible above, "
-                  "crackling fire sounds, intimate and nostalgic atmosphere. Cinematic close-up.",
-    },
-    "sahil": {
-        "label": "Sahilde Gün Batımı",
-        "emoji": "🌅",
-        "prompt": "@Image1 is walking barefoot on a sandy beach at sunset. "
-                  "Golden and pink sky reflecting on wet sand, gentle waves, "
-                  "slow motion hair in the breeze. Emotional, cinematic, serene.",
+    "surf": {
+        "label": "Sörf",
+        "emoji": "🏄",
+        "prompt": (
+            "Cinematic multishot action memory video. No dialogue, only music and ocean sounds. "
+            "Epic cinematic surf music throughout. "
+            "[Shot 1 - Wide] {people} standing on a tropical beach at golden hour, surfboards in hand, looking at massive waves. "
+            "[Shot 2 - Slow motion] Paddling into a huge turquoise wave, water spraying, sun behind them creating a halo. "
+            "[Shot 3 - Dynamic] Riding the wave together, exhilarated expressions, ocean stretching to the horizon. "
+            "[Shot 4 - Close-up] High-five mid-wave, water flying everywhere in slow motion. "
+            "Epic wide cinematography, warm tropical color grade, adrenaline and joy."
+        ),
     },
     "kar": {
         "label": "Kar Topu Savaşı",
         "emoji": "❄️",
-        "prompt": "@Image1 is having a snowball fight in a snowy winter landscape, laughing and running. "
-                  "Soft snowflakes falling, cold breath visible in air, "
-                  "playful energy, warm winter clothing. Joyful and cinematic.",
+        "prompt": (
+            "Cinematic multishot winter memory video. No dialogue, only playful music and snow sounds. "
+            "Warm cheerful acoustic music throughout. "
+            "[Shot 1 - Wide] {people} in a snow-covered forest clearing, breath visible in cold air, building up snowballs with mischievous grins. "
+            "[Shot 2 - Slow motion] Snowball thrown and hitting with a perfect powder explosion, both erupting in laughter. "
+            "[Shot 3 - Close-up] One catching snowflakes on their tongue, the other watching warmly. "
+            "[Shot 4 - Wide] Both collapsing into the snow making snow angels, laughing up at the grey winter sky. "
+            "Soft cold light, cozy winter color grade, pure joy and warmth."
+        ),
+    },
+    "kamp": {
+        "label": "Kamp Ateşi",
+        "emoji": "🏕️",
+        "prompt": (
+            "Cinematic multishot night memory video. No dialogue, only soft music and nature sounds. "
+            "Warm acoustic guitar music throughout. "
+            "[Shot 1 - Wide] {people} arriving at a forest campsite at dusk, setting up a tent, golden light through the trees. "
+            "[Shot 2 - Close-up] Both roasting marshmallows over a glowing campfire, faces lit warmly by the flames, smiling at each other. "
+            "[Shot 3 - Wide] Lying on a blanket staring up at a stunning star-filled sky, the milky way visible above. "
+            "[Shot 4 - Close-up] One resting their head on the other's shoulder, firelight flickering, peaceful and content. "
+            "Deep warm tones, cinematic night photography, intimate and nostalgic."
+        ),
+    },
+    "western": {
+        "label": "Western",
+        "emoji": "🤠",
+        "prompt": (
+            "Cinematic multishot Western film. No dialogue, only dramatic Western score. "
+            "Epic Ennio Morricone-style music throughout. "
+            "[Shot 1 - Wide] {people} riding horses across a vast desert landscape at golden hour, dust rising behind them, dramatic sky. "
+            "[Shot 2 - Close-up] Both with cowboy hats, exchanging a meaningful glance, wind blowing. "
+            "[Shot 3 - Slow motion] Galloping side by side into the sunset, silhouettes against a burning orange sky. "
+            "[Shot 4 - Wide] Stopping on a cliff edge overlooking a canyon, looking out at the epic landscape together. "
+            "Classic Western color grade, dust and golden light, epic and cinematic."
+        ),
+    },
+
+    # ── ROMANTİK ─────────────────────────────────────────────────────────
+    "kir": {
+        "label": "Kırda Buluşma",
+        "emoji": "🌸",
+        "prompt": (
+            "Cinematic multishot romantic memory video. No dialogue, only soft romantic music. "
+            "Beautiful emotional strings music throughout. "
+            "[Shot 1 - Wide] {people} running toward each other through a vast field of wildflowers at golden hour, warm backlight creating a halo around them. "
+            "[Shot 2 - Slow motion] They meet and embrace, wildflowers swaying around them, petals carried by the wind. "
+            "[Shot 3 - Close-up] Looking into each other's eyes tenderly, one holding a single red rose, soft smile. "
+            "[Shot 4 - Wide] Walking together through the flower field hand in hand as the sun sets, silhouettes glowing. "
+            "Warm golden hour cinematography, soft bokeh, deeply romantic and emotional."
+        ),
+    },
+    "paris": {
+        "label": "Paris Sokakları",
+        "emoji": "🗼",
+        "prompt": (
+            "Cinematic multishot romantic Paris film. No dialogue, only romantic French music. "
+            "Soft accordion and strings music throughout. "
+            "[Shot 1 - Wide] {people} walking through a beautiful Parisian street at dusk, warm cafe lights glowing, Eiffel Tower visible in the distance. "
+            "[Shot 2 - Close-up] Sharing a coffee at a sidewalk cafe, looking at each other over the rim of their cups, smiling. "
+            "[Shot 3 - Slow motion] Walking in the rain under a shared umbrella, Paris lights reflecting on wet cobblestones, leaning close. "
+            "[Shot 4 - Wide] Standing in front of the illuminated Eiffel Tower at night, looking up together in wonder. "
+            "Vintage cinematic color grade, romantic Paris atmosphere, timeless and elegant."
+        ),
+    },
+    "bogaz": {
+        "label": "Boğaz'da Gün Batımı",
+        "emoji": "🌉",
+        "prompt": (
+            "Cinematic multishot romantic Istanbul film. No dialogue, only beautiful ambient music. "
+            "Emotional cinematic music throughout. "
+            "[Shot 1 - Wide] {people} on the deck of a wooden boat on the Bosphorus, Istanbul skyline behind them, mosques and minarets glowing in orange light. "
+            "[Shot 2 - Close-up] Both leaning on the railing, wind in their hair, gazing at the stunning sunset over the water. "
+            "[Shot 3 - Slow motion] One handing the other a single red rose, their fingers touching, warm smiles. "
+            "[Shot 4 - Wide] The boat sailing into the golden sunset, their silhouettes close together, city lights beginning to flicker on. "
+            "Rich warm tones, cinematic Istanbul atmosphere, deeply romantic and iconic."
+        ),
+    },
+    "mum": {
+        "label": "Mum Işığında Akşam Yemeği",
+        "emoji": "🕯️",
+        "prompt": (
+            "Cinematic multishot intimate romantic dinner film. No dialogue, only soft jazz music. "
+            "Warm intimate jazz music throughout. "
+            "[Shot 1 - Wide] {people} at an elegantly set table in a rustic stone room, dozens of candles glowing around them, rose petals on the table. "
+            "[Shot 2 - Close-up] Clinking wine glasses gently, eyes locked, candlelight dancing in their eyes. "
+            "[Shot 3 - Close-up] One reaching across and holding the other's hand on the table, a tender knowing smile. "
+            "[Shot 4 - Slow motion] Rose petals falling softly onto the table, both laughing as one catches a petal. "
+            "Deep warm candlelight tones, intimate and luxurious, deeply romantic."
+        ),
+    },
+    "kapadokya": {
+        "label": "Kapadokya Balonları",
+        "emoji": "🎈",
+        "prompt": (
+            "Cinematic multishot magical Cappadocia film. No dialogue, only dreamy music. "
+            "Ethereal cinematic music throughout. "
+            "[Shot 1 - Wide] {people} standing on a cliff at dawn in Cappadocia, hundreds of colorful hot air balloons rising into a pink and orange sky behind them. "
+            "[Shot 2 - Close-up] Inside a balloon basket, both leaning over the edge in wonder, fairy chimneys stretching below them. "
+            "[Shot 3 - Slow motion] A single balloon drifting close by, the landscape stretching magnificently, their hair blowing in the gentle breeze. "
+            "[Shot 4 - Wide] Watching the balloons drift away as the sun fully rises, arms around each other, breathtaking landscape all around. "
+            "Magical golden dawn light, dreamy color grade, wonder and romance."
+        ),
+    },
+
+    # ── FANTASTİK ────────────────────────────────────────────────────────
+    "uzay": {
+        "label": "Uzayda Yürüyüş",
+        "emoji": "🌌",
+        "prompt": (
+            "Cinematic multishot epic space adventure film. No dialogue, only epic orchestral music. "
+            "Hans Zimmer-style cinematic music throughout. "
+            "[Shot 1 - Wide] {people} in sleek astronaut suits floating in the void of space, Earth glowing blue below them, stars infinite around them. "
+            "[Shot 2 - Close-up] Visors touching in space, their faces visible through the helmets, smiling at each other against a backdrop of galaxies. "
+            "[Shot 3 - Wide] Floating hand in hand past a spectacular ringed planet, aurora-like nebula colors surrounding them. "
+            "[Shot 4 - Slow motion] Both reaching out to touch a passing comet's tail, light streaming past them in slow motion. "
+            "Breathtaking space cinematography, deep blacks and vibrant cosmos colors, epic and awe-inspiring."
+        ),
+    },
+    "ejderha": {
+        "label": "Ejderha Üzerinde",
+        "emoji": "🐉",
+        "prompt": (
+            "Cinematic multishot epic fantasy film. No dialogue, only epic fantasy music. "
+            "Sweeping orchestral fantasy music throughout. "
+            "[Shot 1 - Wide] {people} standing on a mountain peak at sunset, a magnificent dragon landing behind them, wings spreading dramatically. "
+            "[Shot 2 - Dynamic] Both riding on the dragon's back, soaring above clouds, landscape far below, expressions of pure exhilaration. "
+            "[Shot 3 - Slow motion] The dragon swooping through golden clouds, their hair and cloaks streaming, sun breaking through dramatically. "
+            "[Shot 4 - Wide] Landing on a cliff at golden hour, dismounting the dragon, looking out at an epic fantasy landscape together. "
+            "Rich fantasy cinematography, epic scale, golden and dramatic color grade."
+        ),
+    },
+    "okyanus_alti": {
+        "label": "Okyanus Altı",
+        "emoji": "🌊",
+        "prompt": (
+            "Cinematic multishot magical underwater film. No dialogue, only magical ambient music. "
+            "Ethereal underwater ambient music throughout. "
+            "[Shot 1 - Wide] {people} in elegant diving suits sinking slowly into a crystal-clear tropical ocean, rays of sunlight piercing the water above them. "
+            "[Shot 2 - Wide] Swimming side by side through a vast colorful coral reef, schools of tropical fish parting around them like a living curtain. "
+            "[Shot 3 - Close-up] Both stopping to watch a majestic sea turtle gliding past, their faces lit by the blue underwater glow, eyes wide with wonder. "
+            "[Shot 4 - Wide] Swimming upward toward the shimmering surface, sunlight above them, silhouettes rising together through the blue. "
+            "Magical teal and blue tones, magical realism, wonder and serenity."
+        ),
+    },
+    "buyulu_orman": {
+        "label": "Büyülü Orman",
+        "emoji": "🧚",
+        "prompt": (
+            "Cinematic multishot magical forest fantasy film. No dialogue, only enchanted music. "
+            "Magical whimsical music with soft bells throughout. "
+            "[Shot 1 - Wide] {people} entering an ancient glowing forest at dusk, fireflies beginning to light up all around them, bioluminescent mushrooms at their feet. "
+            "[Shot 2 - Close-up] Fireflies landing on their outstretched hands, their faces glowing with soft golden light, expressions of pure wonder. "
+            "[Shot 3 - Wide] Dancing slowly among the fireflies, the whole forest glowing around them, magical light particles floating everywhere. "
+            "[Shot 4 - Slow motion] They look up as thousands of glowing fireflies rise around them into the dark sky like living stars. "
+            "Magical bioluminescent palette, dark enchanted forest, pure wonder and magic."
+        ),
+    },
+    "lale": {
+        "label": "Lale Bahçesi",
+        "emoji": "🌷",
+        "prompt": (
+            "Cinematic multishot romantic spring film. No dialogue, only beautiful spring music. "
+            "Light and joyful classical music throughout. "
+            "[Shot 1 - Wide] {people} entering a stunning tulip garden in full bloom, thousands of red and pink tulips stretching to the horizon, Istanbul visible in the distance. "
+            "[Shot 2 - Slow motion] Walking slowly between tall rows of tulips, petals gently swaying, warm spring sunlight filtering through. "
+            "[Shot 3 - Close-up] One handing the other a single perfect red tulip, their fingers touching, warm smiles exchanged. "
+            "[Shot 4 - Wide] Both sitting among the tulips as petals blow in the breeze around them, a perfect spring moment. "
+            "Rich vibrant spring colors, warm golden light, deeply romantic and joyful."
+        ),
+    },
+    "sahil": {
+        "label": "Sahilde Gün Batımı",
+        "emoji": "🌅",
+        "prompt": (
+            "Cinematic multishot emotional beach film. No dialogue, only beautiful ambient music. "
+            "Emotional piano and strings music throughout. "
+            "[Shot 1 - Wide] {people} walking barefoot on a deserted beach at golden hour, waves gently washing over their feet, pink and gold sky stretching endlessly. "
+            "[Shot 2 - Slow motion] Spinning together in the shallow water, laughter silent but visible, water splashing around them, backlit by the setting sun. "
+            "[Shot 3 - Close-up] Sitting together on the sand, watching the sun touch the horizon, one resting their head on the other's shoulder. "
+            "[Shot 4 - Wide] The sun disappears below the horizon, first stars appearing, both silhouetted against the glowing sky. "
+            "Warm golden hour cinematography, emotional and serene, deeply beautiful."
+        ),
+    },
+    "japon_kiraz": {
+        "label": "Japon Kiraz Bahçesi",
+        "emoji": "🌸",
+        "prompt": (
+            "Cinematic multishot romantic Japanese spring film. No dialogue, only delicate music. "
+            "Soft koto and strings music throughout. "
+            "[Shot 1 - Wide] {people} walking along a stunning avenue of cherry blossom trees in full bloom, petals raining down gently around them like pink snow. "
+            "[Shot 2 - Slow motion] Cherry blossom petals falling in slow motion around their faces, both looking up in wonder, pink light everywhere. "
+            "[Shot 3 - Close-up] Sitting beneath a massive cherry blossom tree, petals covering their shoulders, looking at each other tenderly. "
+            "[Shot 4 - Wide] Walking away down the petal-covered path into a soft pink haze of blossoms, a perfect farewell frame. "
+            "Soft pink and white tones, delicate and romantic, timelessly beautiful."
+        ),
+    },
+    "park": {
+        "label": "Parkta Gün",
+        "emoji": "🌳",
+        "prompt": (
+            "Cinematic multishot warm memory film. No dialogue, only cheerful music. "
+            "Light acoustic and strings music throughout. "
+            "[Shot 1 - Wide] {people} arriving at a beautiful park on a perfect sunny day, trees in full leaf, dappled sunlight on the path ahead. "
+            "[Shot 2 - Close-up] Sharing a picnic on a blanket under a tree, laughing over food, golden afternoon light filtering through the leaves. "
+            "[Shot 3 - Wide] Running across an open green field together, one chasing the other playfully, pure joy. "
+            "[Shot 4 - Slow motion] Lying on the grass side by side, looking up at the sky through the tree canopy, completely at peace. "
+            "Warm natural tones, nostalgic home-video feel, deeply heartwarming."
+        ),
     },
 }
+
 
 
 class SeedanceJobModel(BaseModel):
@@ -1935,26 +2146,49 @@ class SeedanceJobModel(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-async def _run_seedance(job_id: str, image_b64: str, concept: str):
-    """Seedance 2.0 ile anı videosu üret."""
+async def _run_seedance(job_id: str, photos: list, concept: str):
+    """
+    Seedance 2.0 reference-to-video ile anı videosu üret.
+    photos: [{"b64": "...", "role": "Me", "relation": "father"}]
+    """
+    import tempfile as _tf
     try:
-        concept_data = SEEDANCE_CONCEPTS.get(concept, SEEDANCE_CONCEPTS["park"])
-        prompt = concept_data["prompt"]
+        concept_data = SEEDANCE_CONCEPTS.get(concept, SEEDANCE_CONCEPTS["sahil"])
+        base_prompt = concept_data["prompt"]
 
-        # Görseli fal.ai'ye yükle
-        import tempfile as _tf
-        tmp = _tf.NamedTemporaryFile(suffix=".jpg", delete=False)
-        tmp.write(_b64.b64decode(image_b64))
-        tmp.close()
-        image_url = await fal_client.upload_file_async(tmp.name)
-        os.unlink(tmp.name)
-        logger.info(f"[seedance {job_id}] Gorsel yuklendi: {image_url}")
+        # Kişi tanımlaması — {people} placeholder'ını doldur
+        people_parts = []
+        for i, p in enumerate(photos):
+            rel = p.get("relation", "person")
+            people_parts.append(f"@Image{i+1} ({rel})")
+        people_str = " and ".join(people_parts)
+        prompt = base_prompt.replace("{people}", people_str)
+
+        # Her fotoğrafı fal.ai'ye yükle
+        image_urls = []
+        for i, p in enumerate(photos):
+            tmp = _tf.NamedTemporaryFile(suffix=".jpg", delete=False)
+            tmp.write(_b64.b64decode(p["b64"]))
+            tmp.close()
+            url = await fal_client.upload_file_async(tmp.name)
+            os.unlink(tmp.name)
+            image_urls.append(url)
+            logger.info(f"[seedance {job_id}] @Image{i+1} yuklendi: {url}")
+
+        # Kimlik koruma talimatını başa ekle
+        full_prompt = (
+            f"IMPORTANT: The people in this video are {people_str}. "
+            f"Preserve the exact face, appearance and identity of each person "
+            f"from their reference image throughout ALL shots. "
+            f"{prompt}"
+        )
+        logger.info(f"[seedance {job_id}] Prompt ({len(full_prompt)} chars): {full_prompt[:300]}...")
 
         handle = await fal_client.submit_async(
             "bytedance/seedance-2.0/fast/reference-to-video",
             arguments={
-                "prompt": prompt,
-                "image_urls": [image_url],
+                "prompt": full_prompt,
+                "image_urls": image_urls,
                 "resolution": "720p",
                 "duration": "8",
                 "aspect_ratio": "9:16",
@@ -1979,7 +2213,6 @@ async def _run_seedance(job_id: str, image_b64: str, concept: str):
 
 @api_router.get("/seedance/concepts")
 async def seedance_concepts():
-    """Mevcut konseptleri döndür."""
     return [
         {"id": k, "label": v["label"], "emoji": v["emoji"]}
         for k, v in SEEDANCE_CONCEPTS.items()
@@ -1988,35 +2221,39 @@ async def seedance_concepts():
 
 @api_router.post("/seedance/create")
 async def seedance_create(request: Request):
-    """Fotoğraf + konsept ile Seedance anı videosu başlat."""
+    """Çoklu fotoğraf + ilişki + konsept ile Seedance anı videosu başlat."""
     if not FAL_KEY:
         raise HTTPException(status_code=500, detail="FAL_KEY eksik")
     try:
+        import base64 as _base64
         form = await request.form()
         concept = form.get("concept", "park")
-        photo_file = form.get("photo")
-        photo_id = form.get("photo_id")  # mevcut photo_id varsa kullan
-
-        if photo_id:
-            # DB'den mevcut fotoğrafı al
-            photo_doc = await db.photos.find_one({"id": photo_id}, {"_id": 0})
-            if not photo_doc or not photo_doc.get("noir_b64"):
-                raise HTTPException(status_code=404, detail="Fotograf bulunamadi")
-            image_b64 = photo_doc["noir_b64"]
-        elif photo_file:
-            import base64 as _base64
-            photo_bytes = await photo_file.read()
-            image_b64 = _base64.b64encode(photo_bytes).decode()
-        else:
-            raise HTTPException(status_code=400, detail="Fotograf veya photo_id gerekli")
 
         if concept not in SEEDANCE_CONCEPTS:
             raise HTTPException(status_code=400, detail=f"Gecersiz konsept: {concept}")
 
+        # Fotoğrafları topla: photo_0, photo_1, photo_2, photo_3
+        # role_0, role_1... ve relation_0, relation_1...
+        photos = []
+        for i in range(4):
+            photo_file = form.get(f"photo_{i}")
+            if not photo_file:
+                continue
+            photo_bytes = await photo_file.read()
+            if not photo_bytes:
+                continue
+            b64 = _base64.b64encode(photo_bytes).decode()
+            role = form.get(f"role_{i}", f"Kisi {i+1}")
+            relation = form.get(f"relation_{i}", "")
+            photos.append({"b64": b64, "role": role, "relation": relation})
+
+        if not photos:
+            raise HTTPException(status_code=400, detail="En az 1 fotograf gerekli")
+
         job = SeedanceJobModel(concept=concept)
         await db.seedance_jobs.insert_one(job.model_dump())
-        asyncio.create_task(_run_seedance(job.id, image_b64, concept))
-        logger.info(f"[seedance] job={job.id} concept={concept} basladi")
+        asyncio.create_task(_run_seedance(job.id, photos, concept))
+        logger.info(f"[seedance] job={job.id} concept={concept} {len(photos)} fotograf")
 
         return {"job_id": job.id, "status": "processing"}
     except HTTPException:
