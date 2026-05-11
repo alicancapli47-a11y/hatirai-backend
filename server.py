@@ -154,6 +154,7 @@ class VideoJobPublic(BaseModel):
     media_url: Optional[str] = None
     kind: str = "image"
     progress: Optional[int] = 0
+    retry_count: Optional[int] = 0
 
 
 # ===================== AUTH =====================
@@ -1214,6 +1215,7 @@ async def get_video(job_id: str):
         media_url=job.get("media_url"),
         kind=job.get("kind", "image"),
         progress=int(job.get("progress") or 0),
+        retry_count=int(job.get("retry_count") or 0),
     )
 
 
@@ -1841,12 +1843,16 @@ async def retry_video(job_id: str):
         raise HTTPException(status_code=403, detail="Odeme yapilmamis")
     if job.get("status") == "generating":
         return {"message": "Zaten uretiliyor"}
+    # Maksimum 1 tekrar deneme hakki
+    if job.get("retry_count", 0) >= 1:
+        raise HTTPException(status_code=403, detail="Tekrar deneme hakkiniz doldu. Odemeniz iade edilecektir.")
     await db.video_jobs.update_one(
         {"id": job_id},
-        {"$set": {"status": "generating", "progress": 0, "error": None, "media_url": None}}
+        {"$set": {"status": "generating", "progress": 0, "error": None, "media_url": None},
+         "$inc": {"retry_count": 1}}
     )
     asyncio.create_task(_run_veo_pipeline(job_id))
-    logger.info(f"[retry] {job_id} yeniden basladi")
+    logger.info(f"[retry] {job_id} yeniden basladi (retry_count={job.get('retry_count', 0) + 1})")
     return {"message": "Yeniden baslatildi"}
 
 
@@ -1870,17 +1876,16 @@ async def heygen_token():
             resp = await hc.post(
                 "https://api.liveavatar.com/v1/sessions/token",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={
-                    "mode": "FULL",
-                    "avatar_id": "fc4125a5-83fa-45e2-8574-bf657ac19998",
-                    "avatar_persona": "Sevilen bir yakin olarak konus. Turkce, sicak ve samimi.",
-                },
+                json={"mode": "FULL"},
                 timeout=15,
             )
-            logger.info(f"[heygen-token] {resp.status_code} {resp.text[:200]}")
+            logger.info(f"[heygen-token] {resp.status_code} {resp.text[:300]}")
             if resp.status_code == 200:
                 data = resp.json()
                 token = data.get("data", {}).get("session_token", "") or data.get("token", "")
+                if not token:
+                    logger.error(f"[heygen-token] Token bos geldi: {data}")
+                    raise HTTPException(status_code=500, detail="Token bos geldi")
                 return {"token": token}
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
     except HTTPException:
