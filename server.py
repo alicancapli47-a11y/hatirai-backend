@@ -453,9 +453,9 @@ def _build_full_script(name: str, ai_sentence: str) -> str:
         f"Merhaba {name}, ne kadar büyüdün.",
     ]
     MIDDLES = [
-        "Her gün aklımdasın, bunu bil.",
-        "Seni düşünmeden tek bir gün geçmiyor.",
-        "Seni her zaman yanımda hissediyorum.",
+        "Her gün aklımdasın, bunu bil. Seninle geçirdiğimiz her anı içimde yaşatıyorum. O güzel günleri, o kahkahalarımızı, o sessiz bakışlarımızı unutmak mümkün mü?",
+        "Seni düşünmeden tek bir gün geçmiyor. Bazen sanki yanımdasın gibi hissediyorum. Sesin kulaklarımda, gülüşün gözlerimin önünde.",
+        "Seni her zaman yanımda hissediyorum. Zor günlerde bile beni ayakta tutan senin sevgindir. Bıraktığın izler hiç silinmedi.",
     ]
     CLOSINGS = [
         f"Seni çok seviyorum {name}. Kendine iyi bak.",
@@ -687,13 +687,8 @@ async def _run_veo_pipeline(job_id: str):
                 f'Speaks softly in Turkish: "{line.strip()}". '
                 "Static camera; no zoom, no pan; preserve the reference face one-to-one."
             )
-            try:
-                video_url = await _veo_clip(current_ref, prompt)
-                logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok — Veo")
-            except Exception as veo_err:
-                logger.warning(f"[veo {job_id}] Veo başarısız, HeyGen fallback: {veo_err}")
-                video_url = await _heygen_clip(current_ref, line.strip(), relationship)
-                logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok — HeyGen fallback")
+            video_url = await _veo_clip(current_ref, prompt)
+            logger.info(f"[veo {job_id}] clip {i+1}/{NUM_CLIPS} ok")
             clip_local = os.path.join(workdir, f"c{i}.mp4")
             await asyncio.to_thread(_http_download, video_url, clip_local)
             clip_paths.append(clip_local)
