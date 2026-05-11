@@ -640,7 +640,7 @@ async def _run_veo_pipeline(job_id: str):
                 "look identical in age to the reference. " +
                 expression +
                 movement +
-                f"Speaks softly in Turkish: "{line.strip()}". "
+                f'Speaks softly in Turkish: "{line.strip()}". '
                 "Static camera; no zoom, no pan; preserve the reference face one-to-one."
             )
             video_url = await _veo_clip(current_ref, prompt)
