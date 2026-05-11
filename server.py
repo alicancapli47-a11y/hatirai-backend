@@ -832,21 +832,19 @@ async def _run_veo_pipeline(job_id: str):
             expression = random.choice(EXPRESSIONS)
             movement = random.choice(MOVEMENTS)
 
-            word_count = len(chunks[i].split()) if chunks[i] else 12
-            duration_hint = "slowly and tenderly" if word_count < 15 else "with heartfelt natural pacing"
-            is_last = (i == NUM_CLIPS - 1)
+            # Bu klip icin soylenecek cumleleri al
+            chunk_text = chunks[i] if chunks[i] else full_script
 
             prompt = (
-                "Cinematic studio portrait. Pure black background, no environment, no room, no objects. "
+                "Cinematic studio portrait on a pure black background, no environment, no room, no objects. "
                 + lighting
                 + "Preserve the exact age, face, identity, hair, skin and clothing of the person "
                 "in the reference image. Do not alter their appearance in any way. "
                 + expression
-                + f"The person speaks in Turkish, {duration_hint}, approximately {word_count} words. "
-                f"They are speaking directly to someone named {name_for_prompt}, "
-                f"calling out their name {name_for_prompt} out loud at least once, "
-                f"with deep love and longing as a {relationship} would speak. "
-                + ("Their expression softens as they finish speaking, a quiet emotional resolve. " if is_last else "")
+                + f"The person speaks the following lines out loud in Turkish, directly addressing {name_for_prompt}, "
+                f"with deep emotion as a {relationship} would: "
+                f'"{chunk_text}" '
+                + ("Their expression softens with quiet emotional resolve as they finish. " if is_last else "")
                 + movement
                 + "Static camera, no zoom, no pan."
             )
