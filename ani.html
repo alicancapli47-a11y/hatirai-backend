@@ -19,94 +19,88 @@
   --serif: Georgia, serif;
 }
 body { background:var(--bg); color:var(--text); font-family:var(--serif); min-height:100vh; }
-
-/* Header */
 .header { display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border); }
 .brand { font-family:var(--mono); font-size:13px; letter-spacing:4px; color:var(--gold); text-decoration:none; }
 .brand span { color:var(--text); }
 .back-btn { font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--text-dim); text-decoration:none; }
-.back-btn:hover { color:var(--text); }
-
-/* Container */
-.container { max-width:520px; margin:0 auto; padding:32px 24px 80px; }
-
+.container { max-width:540px; margin:0 auto; padding:32px 24px 80px; }
 .kicker { font-family:var(--mono); font-size:11px; letter-spacing:3px; color:var(--text-dim); }
-h1 { font-size:38px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
-.lead { font-size:16px; font-style:italic; color:var(--text-dim); line-height:1.6; margin-bottom:32px; }
-.gold-line { width:40px; height:2px; background:var(--gold); margin:16px 0; }
+h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
+.lead { font-size:15px; font-style:italic; color:var(--text-dim); line-height:1.6; margin-bottom:28px; }
+.gold-line { width:40px; height:2px; background:var(--gold); margin:14px 0; }
+.section-title { font-family:var(--mono); font-size:10px; letter-spacing:3px; color:var(--text-dim); margin:28px 0 12px; display:block; }
 
-/* Upload */
-.upload-label { font-family:var(--mono); font-size:10px; letter-spacing:3px; color:var(--text-dim); margin-bottom:8px; display:block; }
-.upload-area {
-  width:100%; aspect-ratio:3/4; max-height:300px;
-  border:1px dashed var(--border-gold);
-  background:var(--surface);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
-  cursor:pointer; position:relative; overflow:hidden; transition:border-color .2s;
+/* Fotoğraf grid */
+.photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.photo-slot { display:flex; flex-direction:column; gap:8px; }
+.slot-role-label { font-family:var(--mono); font-size:10px; letter-spacing:2px; color:var(--text-faint); }
+.optional-badge { color:var(--text-faint); font-size:9px; }
+
+.slot-box {
+  aspect-ratio:3/4; border:1px solid var(--border-gold); background:var(--surface);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:8px; cursor:pointer; position:relative; overflow:hidden; transition:all .2s;
 }
-.upload-area:hover { border-color:var(--gold); }
-.upload-area img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.upload-icon { font-size:32px; }
-.upload-text { font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--text-dim); }
-#photoInput { display:none; }
+.slot-box:hover { border-color:var(--gold); }
+.slot-box.has-photo { border-color:var(--gold); }
+.slot-box.optional-slot { opacity:0.55; border-style:dashed; }
+.slot-box.optional-slot:hover { opacity:1; border-style:solid; }
+.slot-box img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.slot-icon { font-size:26px; position:relative; z-index:1; }
+.slot-label { font-family:var(--mono); font-size:10px; letter-spacing:2px; color:var(--text-dim); text-align:center; position:relative; z-index:1; }
+.slot-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:flex-end; padding:8px; opacity:0; transition:opacity .2s; z-index:2; }
+.slot-box:hover .slot-overlay { opacity:1; }
+.slot-change { font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--gold); }
+.slot-remove { position:absolute; top:6px; right:6px; width:22px; height:22px; background:rgba(0,0,0,0.75); border:none; color:rgba(255,255,255,0.7); font-size:11px; cursor:pointer; display:none; z-index:10; border-radius:2px; line-height:1; }
+.slot-box.has-photo .slot-remove { display:flex; align-items:center; justify-content:center; }
+
+/* İlişki chip */
+.relation-row { display:flex; gap:5px; flex-wrap:wrap; min-height:28px; }
+.rel-chip {
+  padding:4px 10px; border:1px solid var(--border); background:transparent;
+  font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--text-dim);
+  cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.rel-chip:hover { border-color:var(--border-gold); color:var(--text); }
+.rel-chip.active { border-color:var(--gold); color:var(--gold); background:rgba(201,169,97,0.08); }
 
 /* Konseptler */
-.section-title { font-family:var(--mono); font-size:10px; letter-spacing:3px; color:var(--text-dim); margin:28px 0 12px; }
 .concepts { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 .concept {
-  aspect-ratio:1; border:1px solid var(--border);
-  background:var(--surface); display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:6px;
-  cursor:pointer; transition:all .2s; padding:8px;
+  aspect-ratio:1; border:1px solid var(--border); background:var(--surface);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:5px; cursor:pointer; transition:all .2s; padding:6px;
 }
-.concept:hover { border-color:var(--border-gold); background:rgba(201,169,97,0.05); }
+.concept:hover { border-color:var(--border-gold); }
 .concept.selected { border-color:var(--gold); background:rgba(201,169,97,0.08); }
-.concept-emoji { font-size:22px; }
+.concept-emoji { font-size:20px; }
 .concept-label { font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--text-dim); text-align:center; line-height:1.3; }
 .concept.selected .concept-label { color:var(--gold); }
 
 /* Buton */
-.generate-btn {
-  width:100%; padding:18px; background:var(--gold); color:#0A0A0A;
-  border:none; font-family:var(--mono); font-size:13px; letter-spacing:3px;
-  cursor:pointer; margin-top:24px; text-transform:uppercase; transition:opacity .2s;
-}
+.generate-btn { width:100%; padding:18px; background:var(--gold); color:#0A0A0A; border:none; font-family:var(--mono); font-size:13px; letter-spacing:3px; cursor:pointer; margin-top:24px; text-transform:uppercase; transition:opacity .2s; }
 .generate-btn:disabled { opacity:0.4; cursor:not-allowed; }
-.generate-btn:hover:not(:disabled) { opacity:0.9; }
+.hint { font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text-faint); text-align:center; margin-top:10px; line-height:1.8; }
 
 /* Sonuç */
 .result-area { margin-top:28px; display:none; }
 .result-area.show { display:block; }
-
-.progress-box { border:1px solid var(--border); padding:24px; text-align:center; }
-.progress-bar-wrap { height:2px; background:var(--border); margin:16px 0 8px; }
-.progress-bar-fill { height:100%; background:var(--gold); width:0%; transition:width .5s; }
-.progress-label { font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--text-dim); }
-
-.video-box { border:1px solid var(--border-gold); overflow:hidden; }
-.video-box video { width:100%; display:block; }
-.video-actions { display:flex; gap:12px; padding:16px; background:var(--surface); }
-.video-btn {
-  flex:1; padding:14px; border:none; font-family:var(--mono);
-  font-size:11px; letter-spacing:2px; cursor:pointer; text-transform:uppercase;
-}
-.video-btn.primary { background:var(--gold); color:#0A0A0A; }
-.video-btn.ghost { background:transparent; border:1px solid var(--border-gold); color:var(--gold); }
-.video-btn:hover { opacity:0.8; }
-
-.error-box { border:1px solid rgba(255,80,80,0.3); padding:20px; text-align:center; }
-.error-icon { font-size:32px; margin-bottom:8px; }
-.error-text { font-family:var(--mono); font-size:11px; color:rgba(255,120,120,0.8); letter-spacing:1px; }
-.retry-link { font-family:var(--mono); font-size:10px; color:var(--gold); cursor:pointer; margin-top:12px; display:inline-block; letter-spacing:2px; }
-
-.hint { font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text-faint); text-align:center; margin-top:12px; line-height:1.8; }
-
-/* Spinner */
+.progress-box { border:1px solid var(--border); padding:28px; text-align:center; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .spinner { width:28px; height:28px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 16px; }
-
-/* Stages carousel */
-.stage-text { font-family:var(--mono); font-size:12px; letter-spacing:3px; color:var(--gold); margin-bottom:4px; }
+.stage-text { font-family:var(--mono); font-size:12px; letter-spacing:3px; color:var(--gold); margin-bottom:6px; }
+.progress-bar-wrap { height:2px; background:var(--border); margin:14px 0 8px; }
+.progress-bar-fill { height:100%; background:var(--gold); width:0%; transition:width .5s; }
+.progress-label { font-family:var(--mono); font-size:10px; letter-spacing:2px; color:var(--text-dim); }
+.video-box { border:1px solid var(--border-gold); overflow:hidden; }
+.video-box video { width:100%; display:block; max-height:600px; object-fit:contain; background:#000; }
+.video-actions { display:flex; gap:12px; padding:16px; background:var(--surface); }
+.video-btn { flex:1; padding:14px; border:none; font-family:var(--mono); font-size:11px; letter-spacing:2px; cursor:pointer; text-transform:uppercase; }
+.video-btn.primary { background:var(--gold); color:#0A0A0A; }
+.video-btn.ghost { background:transparent; border:1px solid var(--border-gold); color:var(--gold); }
+.error-box { border:1px solid rgba(255,80,80,0.3); padding:20px; text-align:center; }
+.error-text { font-family:var(--mono); font-size:11px; color:rgba(255,120,120,0.8); letter-spacing:1px; margin-top:8px; }
+.retry-link { font-family:var(--mono); font-size:10px; color:var(--gold); cursor:pointer; margin-top:12px; display:inline-block; letter-spacing:2px; }
 </style>
 </head>
 <body>
@@ -118,39 +112,103 @@ h1 { font-size:38px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 
 <div class="container">
   <p class="kicker">— anı videosu —</p>
-  <h1>Fotoğrafı<br>Anıya Çevir</h1>
+  <h1>Anıyı<br>Sahneye Taşı</h1>
   <div class="gold-line"></div>
-  <p class="lead">Bir fotoğraf yükle, bir sahne seç. Yapay zekâ o anı senin için yaratır.</p>
+  <p class="lead">Fotoğrafları yükle, sahneyi seç. Yapay zekâ herkesi o anın içine yerleştirir.</p>
 
-  <!-- Fotoğraf yükleme -->
-  <span class="upload-label">FOTOĞRAF</span>
-  <div class="upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()">
-    <span class="upload-icon">📷</span>
-    <span class="upload-text">FOTOĞRAF SEÇ</span>
-    <input type="file" id="photoInput" accept="image/*" onchange="onPhotoSelect(this)">
+  <span class="section-title">KİŞİLER</span>
+  <div class="photo-grid">
+
+    <!-- Slot 0: Ben -->
+    <div class="photo-slot">
+      <div class="slot-role-label">SEN</div>
+      <div class="slot-box" id="box_0" onclick="triggerUpload(0)">
+        <span class="slot-icon">🤳</span>
+        <span class="slot-label">FOTOĞRAF SEÇ</span>
+        <div class="slot-overlay"><span class="slot-change">DEĞİŞTİR</span></div>
+        <button class="slot-remove" onclick="removePhoto(event,0)">✕</button>
+      </div>
+      <input type="file" id="input_0" accept="image/*" style="display:none" onchange="onPhoto(this,0)">
+      <div class="relation-row">
+        <span class="rel-chip active">Ben</span>
+      </div>
+    </div>
+
+    <!-- Slot 1: Yakın (zorunlu) -->
+    <div class="photo-slot">
+      <div class="slot-role-label">YAKIN</div>
+      <div class="slot-box" id="box_1" onclick="triggerUpload(1)">
+        <span class="slot-icon">👤</span>
+        <span class="slot-label">FOTOĞRAF SEÇ</span>
+        <div class="slot-overlay"><span class="slot-change">DEĞİŞTİR</span></div>
+        <button class="slot-remove" onclick="removePhoto(event,1)">✕</button>
+      </div>
+      <input type="file" id="input_1" accept="image/*" style="display:none" onchange="onPhoto(this,1)">
+      <div class="relation-row" id="rel_1">
+        <span class="rel-chip" onclick="setRel(1,'father',this)">Baba</span>
+        <span class="rel-chip" onclick="setRel(1,'mother',this)">Anne</span>
+        <span class="rel-chip" onclick="setRel(1,'spouse',this)">Eş</span>
+        <span class="rel-chip" onclick="setRel(1,'child',this)">Evlat</span>
+        <span class="rel-chip" onclick="setRel(1,'sibling',this)">Kardeş</span>
+        <span class="rel-chip" onclick="setRel(1,'friend',this)">Dost</span>
+      </div>
+    </div>
+
+    <!-- Slot 2: Opsiyonel -->
+    <div class="photo-slot">
+      <div class="slot-role-label">3. KİŞİ <span class="optional-badge">· opsiyonel</span></div>
+      <div class="slot-box optional-slot" id="box_2" onclick="triggerUpload(2)">
+        <span class="slot-icon">➕</span>
+        <span class="slot-label">EKLE</span>
+        <div class="slot-overlay"><span class="slot-change">DEĞİŞTİR</span></div>
+        <button class="slot-remove" onclick="removePhoto(event,2)">✕</button>
+      </div>
+      <input type="file" id="input_2" accept="image/*" style="display:none" onchange="onPhoto(this,2)">
+      <div class="relation-row" id="rel_2" style="display:none">
+        <span class="rel-chip" onclick="setRel(2,'father',this)">Baba</span>
+        <span class="rel-chip" onclick="setRel(2,'mother',this)">Anne</span>
+        <span class="rel-chip" onclick="setRel(2,'spouse',this)">Eş</span>
+        <span class="rel-chip" onclick="setRel(2,'child',this)">Evlat</span>
+        <span class="rel-chip" onclick="setRel(2,'sibling',this)">Kardeş</span>
+        <span class="rel-chip" onclick="setRel(2,'friend',this)">Dost</span>
+      </div>
+    </div>
+
+    <!-- Slot 3: Opsiyonel -->
+    <div class="photo-slot">
+      <div class="slot-role-label">4. KİŞİ <span class="optional-badge">· opsiyonel</span></div>
+      <div class="slot-box optional-slot" id="box_3" onclick="triggerUpload(3)">
+        <span class="slot-icon">➕</span>
+        <span class="slot-label">EKLE</span>
+        <div class="slot-overlay"><span class="slot-change">DEĞİŞTİR</span></div>
+        <button class="slot-remove" onclick="removePhoto(event,3)">✕</button>
+      </div>
+      <input type="file" id="input_3" accept="image/*" style="display:none" onchange="onPhoto(this,3)">
+      <div class="relation-row" id="rel_3" style="display:none">
+        <span class="rel-chip" onclick="setRel(3,'father',this)">Baba</span>
+        <span class="rel-chip" onclick="setRel(3,'mother',this)">Anne</span>
+        <span class="rel-chip" onclick="setRel(3,'spouse',this)">Eş</span>
+        <span class="rel-chip" onclick="setRel(3,'child',this)">Evlat</span>
+        <span class="rel-chip" onclick="setRel(3,'sibling',this)">Kardeş</span>
+        <span class="rel-chip" onclick="setRel(3,'friend',this)">Dost</span>
+      </div>
+    </div>
+
   </div>
 
-  <!-- Konsept seçimi -->
-  <p class="section-title">SAHNE SEÇ</p>
-  <div class="concepts" id="concepts">
-    <!-- JS ile doldurulacak -->
-  </div>
+  <span class="section-title">SAHNE</span>
+  <div class="concepts" id="concepts"></div>
 
-  <button class="generate-btn" id="generateBtn" onclick="generate()" disabled>
-    VİDEOYU OLUŞTUR
-  </button>
-  <p class="hint">Üretim yaklaşık 1-2 dakika sürer.<br>720p · Sesli · 8 saniye</p>
+  <button class="generate-btn" id="generateBtn" onclick="generate()" disabled>VİDEOYU OLUŞTUR</button>
+  <p class="hint">~1-2 dakika · 720p · Sesli · 8 saniye</p>
 
-  <!-- Sonuç alanı -->
   <div class="result-area" id="resultArea">
-    <!-- processing -->
     <div class="progress-box" id="progressBox">
       <div class="spinner"></div>
       <div class="stage-text" id="stageText">SAHNE HAZIRLANIYOR</div>
       <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
-      <div class="progress-label" id="progressLabel">Seedance 2.0 üretiyor...</div>
+      <div class="progress-label" id="progressLabel">Seedance 2.0 başlatılıyor...</div>
     </div>
-    <!-- video -->
     <div class="video-box" id="videoBox" style="display:none">
       <video id="resultVideo" controls playsinline autoplay loop></video>
       <div class="video-actions">
@@ -158,10 +216,9 @@ h1 { font-size:38px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
         <button class="video-btn primary" onclick="shareVideo()">PAYLAŞ</button>
       </div>
     </div>
-    <!-- hata -->
     <div class="error-box" id="errorBox" style="display:none">
-      <div class="error-icon">✕</div>
-      <div class="error-text" id="errorText">Üretim başarısız oldu.</div>
+      <div>✕</div>
+      <div class="error-text" id="errorText">Üretim başarısız.</div>
       <span class="retry-link" onclick="generate()">TEKRAR DENE →</span>
     </div>
   </div>
@@ -169,36 +226,64 @@ h1 { font-size:38px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 
 <script>
 const BACKEND = 'https://hatirai-backend-production.up.railway.app';
-
-let photoB64 = null;
-let selectedConcept = null;
-let currentJobId = null;
-let pollInterval = null;
-
-const STAGES = [
-  'SAHNE HAZIRLANIYOR',
-  'KARAKTER YERLEŞTİRİLİYOR',
-  'HAREKET ÜRETİLİYOR',
-  'SES EKLENİYOR',
-  'FİNAL RENDER',
-];
+const photos = {0:null,1:null,2:null,3:null};
+const relations = {0:'myself',1:null,2:null,3:null};
+const REL_EN = { myself:'the person (me)', father:'father', mother:'mother', spouse:'spouse', child:'child', sibling:'sibling', friend:'friend' };
+let selectedConcept = null, currentJobId = null, pollInterval = null;
+const STAGES = ['SAHNE HAZIRLANIYOR','KİŞİLER YERLEŞTİRİLİYOR','HAREKET ÜRETİLİYOR','SES EKLENİYOR','FİNAL RENDER'];
 let stageIdx = 0, stageTimer = null;
 
-// Konseptleri yükle
-async function loadConcepts() {
-  try {
-    const r = await fetch(`${BACKEND}/api/seedance/concepts`);
-    const concepts = await r.json();
-    const grid = document.getElementById('concepts');
-    grid.innerHTML = concepts.map(c => `
-      <div class="concept" onclick="selectConcept(this, '${c.id}')" data-id="${c.id}">
-        <span class="concept-emoji">${c.emoji}</span>
-        <span class="concept-label">${c.label}</span>
-      </div>
-    `).join('');
-  } catch(e) {
-    console.error('Konseptler yuklenemedi:', e);
+function triggerUpload(i) { document.getElementById(`input_${i}`).click(); }
+
+function onPhoto(input, i) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    photos[i] = { file, b64: e.target.result.split(',')[1] };
+    const box = document.getElementById(`box_${i}`);
+    box.classList.add('has-photo');
+    box.classList.remove('optional-slot');
+    let img = box.querySelector('img');
+    if (!img) { img = document.createElement('img'); box.insertBefore(img, box.firstChild); }
+    img.src = e.target.result;
+    box.querySelector('.slot-icon').style.display = 'none';
+    box.querySelector('.slot-label').style.display = 'none';
+    if (i >= 2) document.getElementById(`rel_${i}`).style.display = 'flex';
+    checkReady();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(e, i) {
+  e.stopPropagation();
+  photos[i] = null;
+  if (i > 0) relations[i] = null;
+  const box = document.getElementById(`box_${i}`);
+  box.classList.remove('has-photo');
+  if (i >= 2) box.classList.add('optional-slot');
+  const img = box.querySelector('img');
+  if (img) img.remove();
+  box.querySelector('.slot-icon').style.display = '';
+  box.querySelector('.slot-label').style.display = '';
+  document.getElementById(`input_${i}`).value = '';
+  if (i >= 2) {
+    document.getElementById(`rel_${i}`).style.display = 'none';
+    document.querySelectorAll(`#rel_${i} .rel-chip`).forEach(c => c.classList.remove('active'));
   }
+  checkReady();
+}
+
+function setRel(i, rel, el) {
+  relations[i] = rel;
+  document.querySelectorAll(`#rel_${i} .rel-chip`).forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  checkReady();
+}
+
+function checkReady() {
+  const ok = photos[0] && photos[1] && relations[1] && selectedConcept;
+  document.getElementById('generateBtn').disabled = !ok;
 }
 
 function selectConcept(el, id) {
@@ -208,33 +293,21 @@ function selectConcept(el, id) {
   checkReady();
 }
 
-function onPhotoSelect(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    photoB64 = e.target.result.split(',')[1];
-    const area = document.getElementById('uploadArea');
-    let img = area.querySelector('img');
-    if (!img) { img = document.createElement('img'); area.appendChild(img); }
-    img.src = e.target.result;
-    area.querySelector('.upload-icon').style.display = 'none';
-    area.querySelector('.upload-text').style.display = 'none';
-    checkReady();
-  };
-  reader.readAsDataURL(file);
-}
-
-function checkReady() {
-  document.getElementById('generateBtn').disabled = !(photoB64 && selectedConcept);
+async function loadConcepts() {
+  try {
+    const r = await fetch(`${BACKEND}/api/seedance/concepts`);
+    const list = await r.json();
+    document.getElementById('concepts').innerHTML = list.map(c =>
+      `<div class="concept" onclick="selectConcept(this,'${c.id}')">
+        <span class="concept-emoji">${c.emoji}</span>
+        <span class="concept-label">${c.label}</span>
+      </div>`
+    ).join('');
+  } catch(e) { console.error(e); }
 }
 
 async function generate() {
-  if (!photoB64 || !selectedConcept) return;
-
-  // UI sıfırla
-  clearInterval(pollInterval);
-  clearInterval(stageTimer);
+  clearInterval(pollInterval); clearInterval(stageTimer);
   stageIdx = 0;
   document.getElementById('resultArea').classList.add('show');
   document.getElementById('progressBox').style.display = 'block';
@@ -242,60 +315,41 @@ async function generate() {
   document.getElementById('errorBox').style.display = 'none';
   document.getElementById('progressFill').style.width = '5%';
   document.getElementById('stageText').textContent = STAGES[0];
-  document.getElementById('progressLabel').textContent = 'Seedance 2.0 başlatılıyor...';
   document.getElementById('generateBtn').disabled = true;
-
-  // Stage carousel
   stageTimer = setInterval(() => {
     stageIdx = (stageIdx + 1) % STAGES.length;
     document.getElementById('stageText').textContent = STAGES[stageIdx];
   }, 8000);
 
   try {
-    const formData = new FormData();
-    // base64'ü blob'a çevir
-    const byteStr = atob(photoB64);
-    const ab = new ArrayBuffer(byteStr.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
-    const blob = new Blob([ab], { type: 'image/jpeg' });
-    formData.append('photo', blob, 'photo.jpg');
-    formData.append('concept', selectedConcept);
-
-    const r = await fetch(`${BACKEND}/api/seedance/create`, { method:'POST', body:formData });
+    const fd = new FormData();
+    fd.append('concept', selectedConcept);
+    let si = 0;
+    for (let i = 0; i < 4; i++) {
+      if (!photos[i]) continue;
+      fd.append(`photo_${si}`, photos[i].file);
+      fd.append(`role_${si}`, i === 0 ? 'Me' : `Person ${i+1}`);
+      fd.append(`relation_${si}`, REL_EN[relations[i]] || 'person');
+      si++;
+    }
+    const r = await fetch(`${BACKEND}/api/seedance/create`, { method:'POST', body:fd });
     if (!r.ok) throw new Error(await r.text());
     const data = await r.json();
     currentJobId = data.job_id;
 
-    // Polling
     let elapsed = 0;
     pollInterval = setInterval(async () => {
       elapsed += 3;
-      const pct = Math.min(90, 5 + elapsed * 1.2);
-      document.getElementById('progressFill').style.width = pct + '%';
-      document.getElementById('progressLabel').textContent = `~${Math.max(0, 120 - elapsed)} saniye...`;
-
+      document.getElementById('progressFill').style.width = Math.min(90, 5 + elapsed * 1.2) + '%';
+      document.getElementById('progressLabel').textContent = `~${Math.max(0, 120-elapsed)} saniye...`;
       try {
         const jr = await fetch(`${BACKEND}/api/seedance/job/${currentJobId}`);
         const job = await jr.json();
-
-        if (job.status === 'ready') {
-          clearInterval(pollInterval);
-          clearInterval(stageTimer);
-          document.getElementById('progressFill').style.width = '100%';
-          setTimeout(() => showVideo(job.video_url), 400);
-        } else if (job.status === 'failed') {
-          clearInterval(pollInterval);
-          clearInterval(stageTimer);
-          showError(job.error || 'Üretim başarısız.');
-        }
+        if (job.status === 'ready') { clearInterval(pollInterval); clearInterval(stageTimer); document.getElementById('progressFill').style.width='100%'; setTimeout(()=>showVideo(job.video_url),400); }
+        else if (job.status === 'failed') { clearInterval(pollInterval); clearInterval(stageTimer); showError(job.error||'Üretim başarısız.'); }
       } catch(e) {}
     }, 3000);
-
-  } catch(e) {
-    clearInterval(stageTimer);
-    showError(e.message || 'Bir hata oluştu.');
-  }
+  } catch(e) { clearInterval(stageTimer); showError(e.message||'Hata.'); }
 }
 
 function showVideo(url) {
@@ -304,37 +358,26 @@ function showVideo(url) {
   document.getElementById('resultVideo').src = url;
   document.getElementById('generateBtn').disabled = false;
   window._videoUrl = url;
+  document.getElementById('resultArea').scrollIntoView({behavior:'smooth'});
 }
-
 function showError(msg) {
   document.getElementById('progressBox').style.display = 'none';
   document.getElementById('errorBox').style.display = 'block';
-  document.getElementById('errorText').textContent = msg.substring(0, 200);
+  document.getElementById('errorText').textContent = msg.substring(0,200);
   document.getElementById('generateBtn').disabled = false;
 }
-
 function downloadVideo() {
   if (!window._videoUrl) return;
-  const a = document.createElement('a');
-  a.href = window._videoUrl;
-  a.download = 'hatirai-ani.mp4';
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const a = document.createElement('a'); a.href=window._videoUrl; a.download='hatirai-ani.mp4'; a.target='_blank';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
-
 async function shareVideo() {
   if (!window._videoUrl) return;
-  if (navigator.share) {
-    try { await navigator.share({ title: 'HatırAI Anı Videosu', url: window._videoUrl }); return; }
-    catch(e) {}
-  }
+  if (navigator.share) { try { await navigator.share({title:'HatırAI',url:window._videoUrl}); return; } catch(e){} }
   navigator.clipboard?.writeText(window._videoUrl);
-  alert('Video linki kopyalandı!');
+  alert('Link kopyalandı!');
 }
 
-// Başlat
 loadConcepts();
 </script>
 </body>
