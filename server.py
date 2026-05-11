@@ -571,6 +571,7 @@ async def _veo_clip(image_url: str, prompt: str) -> str:
             "resolution": "720p",
             "aspect_ratio": "9:16",
             "generate_audio": True,
+            "safety_tolerance": "6",
         },
     )
     result = await handle.get()
@@ -639,7 +640,7 @@ async def _run_veo_pipeline(job_id: str):
                 "look identical in age to the reference. " +
                 expression +
                 movement +
-                f"Speaks softly in Turkish: \"{line.strip()}\". "
+                f"Speaks softly in Turkish: "{line.strip()}". "
                 "Static camera; no zoom, no pan; preserve the reference face one-to-one."
             )
             video_url = await _veo_clip(current_ref, prompt)
@@ -1570,6 +1571,25 @@ async def admin_test_payment(job_id: str, _: str = Depends(require_admin)):
     asyncio.create_task(_run_veo_pipeline(job_id))
     return {"message": f"Job {job_id} ödendi, video üretimi başladı"}
 
+
+
+@api_router.post("/video/retry/{job_id}")
+async def retry_video(job_id: str):
+    """Başarısız bir video job'ını yeniden başlat."""
+    job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="İş bulunamadı")
+    if job.get("payment_status") != "paid":
+        raise HTTPException(status_code=403, detail="Ödeme yapılmamış")
+    if job.get("status") == "generating":
+        return {"message": "Zaten üretiliyor"}
+    await db.video_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"status": "generating", "progress": 0, "error": None, "media_url": None}}
+    )
+    asyncio.create_task(_run_veo_pipeline(job_id))
+    logger.info(f"[retry] job {job_id} yeniden başlatıldı")
+    return {"message": "Yeniden başlatıldı"}
 
 @api_router.get("/admin/jobs", response_model=List[VideoJob])
 async def admin_all(_: str = Depends(require_admin)):
