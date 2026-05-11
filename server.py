@@ -762,8 +762,8 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
     checkout_request = {
         "locale": "tr",
         "conversationId": conversation_id,
-        "price": "100.00",
-        "paidPrice": "100.00",
+        "price": "99.00",
+        "paidPrice": "99.00",
         "currency": "TRY",
         "basketId": f"hatirai-{body.job_id}",
         "paymentGroup": "PRODUCT",
@@ -804,7 +804,7 @@ async def payment_initiate(body: PaymentInitiateBody, request: Request):
                 "name": "HatırAI Sinematik Canlandırma",
                 "category1": "Dijital Icerik",
                 "itemType": "VIRTUAL",
-                "price": "100.00",
+                "price": "99.00",
             }
         ],
     }
@@ -1430,7 +1430,7 @@ async def shopier_init(request: Request):
 
         random_nr = str(int(time.time()))
 
-        data = random_nr + job_id + "100.00" + "0"
+        data = random_nr + job_id + "99.00" + "0"
         signature = hmac.new(
             api_secret.encode('utf-8'),
             data.encode('utf-8'),
@@ -1457,7 +1457,7 @@ async def shopier_init(request: Request):
             "shipping_city": "İstanbul",
             "shipping_country": "Turkey",
             "shipping_postcode": "34000",
-            "total_order_value": "100.00",
+            "total_order_value": "99.00",
             "currency": "0",
             "random_nr": random_nr,
             "signature": signature,
