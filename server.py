@@ -449,7 +449,7 @@ async def get_photo(photo_id: str):
 # ---------- Memory form + AI sentence ----------
 async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str]) -> str:
     if not last_memory or not last_memory.strip():
-        return "Birlikte gecirdigimiz o guzel gunleri unutamiyorum"
+        return f"{name}, seni cok ozledim."
     try:
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = await asyncio.to_thread(
@@ -460,6 +460,7 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
                 "Sen Turkce konusan, sicak, sinematik, hafif duygusal bir senaryo yazarisin. "
                 "Verilen paylasilan aniyi, kayip bir yakinin hayalete benzeyen bir "
                 "selamlama videosunda soyleyecegi TEK bir cumleye donustur. "
+                "Cumle mutlaka karsidakinin adini icermeli. "
                 "En fazla 18 kelime. Kliseden kacin. Dokunaklı, kisisel bir ton kullan. "
                 "Sadece cumleyi dondur, baska hicbir sey yazma."
             ),
@@ -469,39 +470,69 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
                     f"Iliski: {relationship}\n"
                     f"Karsı tarafa soyleyenin adi: {name}\n"
                     f"Paylasilan ani: {last_memory}\n\n"
-                    "Bu aniya atifta bulunan 1 cumle yaz."
+                    f"Bu aniya atifta bulunan ve '{name}' adini iceren 1 cumle yaz."
                 )
             }]
         )
         line = (response.content[0].text or "").strip().strip('"').strip("'").splitlines()[0]
-        return line[:240] if line else "Birlikte gecirdigimiz o guzel gunleri unutamiyorum"
+        return line[:240] if line else f"{name}, o gunleri hic unutmadim."
     except Exception as e:
         logger.warning(f"[ai-sentence] fallback ({e})")
-        return "Birlikte gecirdigimiz o guzel gunleri unutamiyorum"
+        return f"{name}, seni cok ozledim."
 
 
-def _build_full_script(name: str, ai_sentence: str) -> str:
+async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str) -> str:
+    """
+    Claude ile aniya sadik, isim birden fazla gecen, dogal Turkce konusma metni uret.
+    Fallback: sabit sablonla doldur.
+    """
+    try:
+        ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        memory_hint = last_memory if last_memory and last_memory.strip() else "genel ozlem ve sevgi"
+        response = await asyncio.to_thread(
+            ac.messages.create,
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=300,
+            system=(
+                "Sen Turkce konusan duygusal bir senaryo yazarisin. "
+                "Bir kisi sevdigi birine kisa bir video mesaji birakiyor. "
+                "Mesaj dogal, samimi, sinematik olmali. "
+                "Karsidakinin adini en az 2 kez kullan. "
+                "Verilen aniya mutlaka atifta bulun, kliseden kacin. "
+                "Toplam 60-80 kelime. Paragraf yok, tek akis. "
+                "Sadece konusma metnini yaz, hicbir aciklama ekleme."
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Konusan kisinin adi: {name}\n"
+                    f"Iliski: {relationship}\n"
+                    f"Paylasilan ani: {memory_hint}\n"
+                    f"Ilk cumle su olmali: {ai_sentence}\n\n"
+                    f"Bu bilgileri kullanarak {name} adina dogal bir video mesaji yaz."
+                )
+            }]
+        )
+        script = (response.content[0].text or "").strip()
+        return script if len(script) > 20 else _fallback_script(name, ai_sentence)
+    except Exception as e:
+        logger.warning(f"[full-script] Claude fallback ({e})")
+        return _fallback_script(name, ai_sentence)
+
+
+def _fallback_script(name: str, ai_sentence: str) -> str:
     import random
-    OPENINGS = [
-        f"Selam {name}.",
-        f"{name}, seni cok ozledim.",
-        f"Merhaba {name}, ne kadar buyudun.",
-    ]
     MIDDLES = [
-        "Her gun aklimdasin, bunu bil. Seninle gecirdigimiz her ani icimde yasatiyorum. O guzel gunleri, o kahkahalari, o sessiz bakislari unutmak mumkun mu?",
-        "Seni dusunmeden tek bir gun gecmiyor. Bazen sanki yanimdasin gibi hissediyorum. Sesin kulaklarimda, gulisun gozlerimin onunde.",
-        "Seni her zaman yanimda hissediyorum. Zor gunlerde bile beni ayakta tutan senin sevgindir. Biraktigin izler hic silinmedi.",
+        f"Her gun aklimdasin {name}, bunu bil. Seninle gecirdigimiz her ani icimde yasatiyorum.",
+        f"Seni dusunmeden tek bir gun gecmiyor {name}. Sesin hala kulaklarimda.",
+        f"Seni her zaman yanimda hissediyorum {name}. Biraktigin izler hic silinmedi.",
     ]
     CLOSINGS = [
         f"Seni cok seviyorum {name}. Kendine iyi bak.",
         f"Her zaman kalbimdesin {name}. Guclu ol.",
-        f"Umuyorum ki bir gun yeniden gorusuruz {name}. Seni seviyorum.",
+        f"Seni seviyorum {name}.",
     ]
-    return (
-        f"{random.choice(OPENINGS)} {ai_sentence}. "
-        f"{random.choice(MIDDLES)} "
-        f"{random.choice(CLOSINGS)}"
-    )
+    return f"{ai_sentence}. {random.choice(MIDDLES)} {random.choice(CLOSINGS)}"
 
 
 @api_router.post("/memory/form")
@@ -516,7 +547,7 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
     rel = body.relationship.strip()[:30] or "Sevdigim"
     memory = (body.last_memory or "").strip()[:400]
     ai_sentence = await _generate_ai_sentence(name, rel, memory)
-    full = _build_full_script(name, ai_sentence)
+    full = await _build_full_script(name, rel, memory, ai_sentence)
     rec = MemoryForm(
         photo_id=body.photo_id, name=name, relationship=rel,
         last_memory=memory or None, ai_sentence=ai_sentence, full_script=full,
@@ -790,6 +821,9 @@ async def _run_veo_pipeline(job_id: str):
         chunks = [". ".join(sentences[i * per:(i + 1) * per]) for i in range(NUM_CLIPS - 1)]
         chunks.append(". ".join(sentences[(NUM_CLIPS - 1) * per:]))
 
+        # Anı bilgileri — isim oldugu gibi geciyor, Turkce karakter sorun degil
+        name_for_prompt = (form or {}).get("name") or "sevdigi biri"
+
         clip_paths: List[str] = []
         current_ref = ref_url
 
@@ -798,9 +832,9 @@ async def _run_veo_pipeline(job_id: str):
             expression = random.choice(EXPRESSIONS)
             movement = random.choice(MOVEMENTS)
 
-            # Kac kelime soylendigi bilgisini gecir — Turkce metni degil, sadece uzunluk ve dil talimatı
-            word_count = len(chunks[i].split()) if chunks[i] else 10
-            duration_hint = "slowly and warmly" if word_count < 15 else "with natural pacing"
+            word_count = len(chunks[i].split()) if chunks[i] else 12
+            duration_hint = "slowly and tenderly" if word_count < 15 else "with heartfelt natural pacing"
+            is_last = (i == NUM_CLIPS - 1)
 
             prompt = (
                 "Cinematic studio portrait. Pure black background, no environment, no room, no objects. "
@@ -808,8 +842,11 @@ async def _run_veo_pipeline(job_id: str):
                 + "Preserve the exact age, face, identity, hair, skin and clothing of the person "
                 "in the reference image. Do not alter their appearance in any way. "
                 + expression
-                + f"The person is speaking in Turkish language, {duration_hint}, "
-                f"approximately {word_count} words, sincere and emotional tone. "
+                + f"The person speaks in Turkish, {duration_hint}, approximately {word_count} words. "
+                f"They are speaking directly to someone named {name_for_prompt}, "
+                f"calling out their name {name_for_prompt} out loud at least once, "
+                f"with deep love and longing as a {relationship} would speak. "
+                + ("Their expression softens as they finish speaking, a quiet emotional resolve. " if is_last else "")
                 + movement
                 + "Static camera, no zoom, no pan."
             )
