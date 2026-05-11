@@ -4,12 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HatırAI · Canlı Sohbet</title>
+<script src="https://cdn.jsdelivr.net/npm/@heygen/liveavatar-web-sdk@latest/dist/index.umd.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; height:100vh; overflow:hidden; position:relative; }
 
+/* Avatar video */
 #avatarVideo { width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0; display:none; }
 
+/* Placeholder */
 .placeholder { width:100%; height:100%; position:absolute; top:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; }
 .av-circle { width:160px; height:160px; border-radius:50%; background:rgba(200,169,110,.08); border:1px solid rgba(200,169,110,.25); display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .av-circle img { width:100%; height:100%; object-fit:cover; }
@@ -20,26 +23,32 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
 .dot { width:8px; height:8px; border-radius:50%; background:#c8a96e; animation:pulse 2s ease-in-out infinite; }
 @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
 
+/* Top bar */
 .top-bar { position:absolute; top:0; left:0; right:0; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent); z-index:20; }
 .brand { font-size:12px; color:rgba(255,255,255,.35); letter-spacing:3px; text-transform:uppercase; }
 .timer { background:rgba(0,0,0,.5); border:0.5px solid rgba(255,255,255,.12); border-radius:20px; padding:6px 14px; font-size:14px; color:#c8a96e; font-variant-numeric:tabular-nums; }
 
+/* Kullanıcı kamerası */
 .user-cam { position:absolute; top:20px; right:20px; width:100px; height:140px; border-radius:12px; overflow:hidden; border:1.5px solid rgba(255,255,255,.12); z-index:20; box-shadow:0 8px 24px rgba(0,0,0,.5); }
 #userVideo { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
 .cam-label { position:absolute; bottom:5px; left:7px; font-size:10px; color:rgba(255,255,255,.5); letter-spacing:1px; }
 
+/* Ses dalgası */
 .wave { position:absolute; bottom:160px; left:50%; transform:translateX(-50%); display:flex; gap:4px; align-items:flex-end; opacity:0; transition:opacity .3s; z-index:15; }
 .wave.on { opacity:1; }
 .wb { width:3px; background:#c8a96e; border-radius:2px; animation:wa .8s ease-in-out infinite; }
 .wb:nth-child(1){height:8px;animation-delay:0s}.wb:nth-child(2){height:20px;animation-delay:.1s}.wb:nth-child(3){height:14px;animation-delay:.2s}.wb:nth-child(4){height:26px;animation-delay:.3s}.wb:nth-child(5){height:16px;animation-delay:.4s}.wb:nth-child(6){height:10px;animation-delay:.5s}.wb:nth-child(7){height:22px;animation-delay:.6s}
 @keyframes wa{0%,100%{transform:scaleY(.3);opacity:.4}50%{transform:scaleY(1);opacity:1}}
 
+/* Konuşma baloncukları */
 .transcript { position:absolute; bottom:160px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; width:85%; max-width:380px; z-index:15; }
 .bubble { padding:10px 14px; border-radius:12px; font-size:14px; line-height:1.5; opacity:0; animation:fadeIn .3s forwards; }
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .bubble.user { background:rgba(255,255,255,.1); align-self:flex-end; color:rgba(255,255,255,.8); border-bottom-right-radius:3px; }
 .bubble.avatar { background:rgba(200,169,110,.15); border:0.5px solid rgba(200,169,110,.3); align-self:flex-start; color:rgba(255,255,255,.9); border-bottom-left-radius:3px; }
+.bubble.typing { font-style:italic; color:rgba(255,255,255,.4); }
 
+/* Dinleme göstergesi */
 .listening-indicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:12px; z-index:25; }
 .listening-indicator.on { display:flex; }
 .listen-wave { display:flex; gap:5px; align-items:center; }
@@ -48,6 +57,7 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
 @keyframes lwa{0%,100%{transform:scaleY(.4);opacity:.5}50%{transform:scaleY(1);opacity:1}}
 .listen-text { font-size:13px; color:rgba(255,255,255,.6); letter-spacing:1px; }
 
+/* Kontroller */
 .controls { position:absolute; bottom:0; left:0; right:0; padding:16px 20px 36px; display:flex; flex-direction:column; align-items:center; gap:12px; background:linear-gradient(to top,rgba(0,0,0,.85),transparent); z-index:20; }
 .motto { font-size:11px; color:rgba(255,255,255,.2); letter-spacing:2px; text-transform:uppercase; }
 .btns { display:flex; gap:24px; align-items:center; }
@@ -60,52 +70,72 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
 @keyframes rp{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.4)}50%{box-shadow:0 0 0 16px rgba(255,255,255,0)}}
 .btn.end { width:52px; height:52px; background:rgba(200,50,50,.8); color:#fff; }
 
-.setup { position:absolute; top:0; left:0; right:0; bottom:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:32px; z-index:50; overflow-y:auto; }
+/* Setup ekranı */
+.setup { position:absolute; top:0; left:0; right:0; bottom:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:32px; z-index:50; overflow-y:auto; }
 .setup h1 { font-size:20px; font-weight:300; letter-spacing:4px; color:#c8a96e; }
 .setup p { font-size:13px; color:rgba(255,255,255,.4); text-align:center; line-height:1.6; }
 .inp { width:100%; max-width:340px; background:rgba(255,255,255,.06); border:0.5px solid rgba(255,255,255,.15); border-radius:8px; padding:12px 16px; font-size:14px; color:#fff; outline:none; }
 .inp::placeholder { color:rgba(255,255,255,.3); }
 .inp:focus { border-color:rgba(200,169,110,.5); }
-.photo-upload { width:100%; max-width:340px; padding:14px; background:rgba(200,169,110,.08); border:1px dashed rgba(200,169,110,.4); border-radius:8px; text-align:center; cursor:pointer; font-size:13px; color:#c8a96e; }
-.photo-preview { width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid rgba(200,169,110,.4); display:none; }
-.start-btn { width:100%; max-width:340px; padding:14px; background:#c8a96e; color:#000; border:none; border-radius:8px; font-size:14px; letter-spacing:2px; cursor:pointer; text-transform:uppercase; font-weight:500; }
-.start-btn:disabled { opacity:.5; cursor:not-allowed; }
-.voice-btn { flex:1; padding:10px 6px; background:rgba(255,255,255,.06); border:0.5px solid rgba(255,255,255,.15); border-radius:8px; color:rgba(255,255,255,.6); font-size:12px; cursor:pointer; transition:all .2s; }
-.voice-btn.active { background:rgba(200,169,110,.15); border-color:#c8a96e; color:#c8a96e; }
+
+/* Preset avatarlar */
+.presets { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:340px; }
+.preset { display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.1); transition:all .2s; width:80px; }
+.preset:hover { border-color:rgba(200,169,110,.4); background:rgba(200,169,110,.05); }
+.preset.selected { border-color:#c8a96e; background:rgba(200,169,110,.1); }
+.preset-img { width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid rgba(200,169,110,.2); }
+.preset-name { font-size:10px; color:rgba(255,255,255,.5); letter-spacing:1px; text-align:center; }
+.preset.selected .preset-name { color:#c8a96e; }
+
 .prog { width:100%; max-width:340px; display:none; }
 .prog-bar { height:3px; background:rgba(200,169,110,.2); border-radius:2px; overflow:hidden; }
 .prog-fill { height:100%; background:#c8a96e; width:0%; transition:width .5s; border-radius:2px; }
 .prog-text { font-size:11px; color:rgba(255,255,255,.4); text-align:center; margin-top:6px; letter-spacing:1px; }
+.start-btn { width:100%; max-width:340px; padding:14px; background:#c8a96e; color:#000; border:none; border-radius:8px; font-size:14px; letter-spacing:2px; cursor:pointer; text-transform:uppercase; font-weight:500; }
+.start-btn:disabled { opacity:.5; cursor:not-allowed; }
+.section-label { font-size:10px; color:rgba(255,255,255,.3); letter-spacing:3px; text-transform:uppercase; align-self:flex-start; margin-left:calc(50% - 170px); }
 </style>
 </head>
 <body>
 
+<!-- Setup -->
 <div class="setup" id="setup">
   <h1>HatırAI · Sohbet</h1>
   <p>Yakınınızla 1 dakikalık özel sohbet.<br>Ona söyleyemediklerinizi söyleyin.</p>
-  <img class="photo-preview" id="photoPreview">
-  <label class="photo-upload" id="photoLabel">
-    📷 Fotoğraf seç
-    <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="onPhoto(this)">
-  </label>
-  <input class="inp" id="personName" placeholder="Yakınınızın adı (örn: Elif)" />
-  <input class="inp" id="relation" placeholder="İlişkiniz (örn: annem, babam)" />
-  <textarea class="inp" id="context" placeholder="Kısaca ondan bahsedin..." rows="2" style="resize:none"></textarea>
-  <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;">
-    <p style="font-size:11px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;">Ses Seçimi</p>
-    <div style="display:flex;gap:8px;">
-      <button class="voice-btn active" onclick="selectVoice(this,'FYPltOzsM2n1UbqzX19d')">👨 Erkek Genç</button>
-      <button class="voice-btn" onclick="selectVoice(this,'WRjHw9UKGmcRAoOgyIzT')">👴 Erkek Yaşlı</button>
-      <button class="voice-btn" onclick="selectVoice(this,'SAz9YHcvj6GT2YYXdXww')">👩 Kadın Genç</button>
+
+  <span class="section-label">AVATAR SEÇİN</span>
+  <div class="presets" id="presets">
+    <div class="preset selected" onclick="selectPreset(this, 'fc4125a5-83fa-45e2-8574-bf657ac19998', 'Yaşlı Erkek')" data-id="fc4125a5-83fa-45e2-8574-bf657ac19998">
+      <div class="preset-img" style="background:rgba(200,169,110,.15);display:flex;align-items:center;justify-content:center;font-size:24px;">👴</div>
+      <span class="preset-name">DEDE</span>
+    </div>
+    <div class="preset" onclick="selectPreset(this, 'Wayne_20240711', 'Orta Yaş Erkek')" data-id="Wayne_20240711">
+      <div class="preset-img" style="background:rgba(200,169,110,.15);display:flex;align-items:center;justify-content:center;font-size:24px;">👨</div>
+      <span class="preset-name">BABA</span>
+    </div>
+    <div class="preset" onclick="selectPreset(this, 'Daisy-inskirt-20220818', 'Kadın')" data-id="Daisy-inskirt-20220818">
+      <div class="preset-img" style="background:rgba(200,169,110,.15);display:flex;align-items:center;justify-content:center;font-size:24px;">👩</div>
+      <span class="preset-name">ANNE</span>
+    </div>
+    <div class="preset" onclick="selectPreset(this, 'Anna_public_3_20240108', 'Yaşlı Kadın')" data-id="Anna_public_3_20240108">
+      <div class="preset-img" style="background:rgba(200,169,110,.15);display:flex;align-items:center;justify-content:center;font-size:24px;">👵</div>
+      <span class="preset-name">NINE</span>
     </div>
   </div>
+
+  <span class="section-label">BİLGİLER</span>
+  <input class="inp" id="personName" placeholder="Yakınınızın adı (örn: Mehmet)" />
+  <input class="inp" id="relation" placeholder="İlişkiniz (örn: dedem, annem)" />
+  <textarea class="inp" id="context" placeholder="Kısaca ondan bahsedin... (opsiyonel)" rows="2" style="resize:none"></textarea>
+
   <div class="prog" id="prog">
     <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
-    <div class="prog-text" id="progText">Hazırlanıyor...</div>
+    <div class="prog-text" id="progText">Bağlanıyor...</div>
   </div>
-  <button class="start-btn" id="startBtn" onclick="startSession()" disabled>Fotoğraf seçin</button>
+  <button class="start-btn" id="startBtn" onclick="startSession()">BAŞLAT</button>
 </div>
 
+<!-- Ana ekran -->
 <div class="top-bar">
   <span class="brand">HatırAI · Sohbet</span>
   <div class="timer" id="timer">1:00</div>
@@ -148,54 +178,46 @@ body { background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont
   </div>
 </div>
 
-<!-- SDK ESM olarak yükleniyor, sonra global'e atanıyor -->
-<script type="module">
-  import * as LiveAvatarSDK from 'https://esm.sh/@heygen/liveavatar-web-sdk@0.0.18';
-  window.__LiveAvatarSDK = LiveAvatarSDK;
-  window.__sdkReady = true;
-  console.log('[SDK] Yüklendi, export keys:', Object.keys(LiveAvatarSDK));
-</script>
-
 <script>
 const BACKEND = 'https://hatirai-backend-production.up.railway.app';
-const AVATAR_ID = 'fc4125a5-83fa-45e2-8574-bf657ac19998';
 
-let photoFile = null;
-let selectedVoiceId = 'FYPltOzsM2n1UbqzX19d';
-let timeLeft = 60, timerInterval = null, timerStarted = false;
-let muted = false, listening = false;
+// State
+let selectedAvatarId = 'fc4125a5-83fa-45e2-8574-bf657ac19998';
+let liveAvatarSession = null;
 let userStream = null;
 let recognition = null;
-let avatar = null;
+let muted = false, listening = false;
+let timeLeft = 60, timerInterval = null, timerStarted = false;
 
-function selectVoice(btn, voiceId) {
-  selectedVoiceId = voiceId;
-  document.querySelectorAll('.voice-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+// Preset seçimi
+function selectPreset(el, avatarId, label) {
+  document.querySelectorAll('.preset').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedAvatarId = avatarId;
 }
 
-function onPhoto(input) {
-  const file = input.files[0];
-  if (!file) return;
-  photoFile = file;
-  const url = URL.createObjectURL(file);
-  document.getElementById('photoPreview').src = url;
-  document.getElementById('photoPreview').style.display = 'block';
-  document.getElementById('avCircle').innerHTML = `<img src="${url}">`;
-  document.getElementById('photoLabel').textContent = '✅ ' + file.name;
-  document.getElementById('startBtn').disabled = false;
-  document.getElementById('startBtn').textContent = 'SOHBETE BAŞLA →';
-}
-
+// Progress göster
 function setProgress(pct, text) {
-  document.getElementById('prog').style.display = 'block';
+  const prog = document.getElementById('prog');
+  prog.style.display = 'block';
   document.getElementById('progFill').style.width = pct + '%';
   document.getElementById('progText').textContent = text;
 }
 
+// Kullanıcı kamerasını başlat
+async function startUserCam() {
+  try {
+    userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById('userVideo').srcObject = userStream;
+  } catch(e) {
+    console.warn('Kamera açılamadı:', e);
+  }
+}
+
+// Web Speech API
 function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return false;
+  if (!SR) return;
   recognition = new SR();
   recognition.lang = 'tr-TR';
   recognition.continuous = false;
@@ -203,111 +225,142 @@ function initSpeech() {
   recognition.onresult = (e) => {
     const text = e.results[0][0].transcript;
     stopListening();
-    if (text.trim()) processText(text.trim());
+    processText(text);
   };
   recognition.onerror = () => stopListening();
-  recognition.onend = () => { if (listening) stopListening(); };
-  return true;
+  recognition.onend = () => { if (listening) { try { recognition.start(); } catch(e){} } };
 }
 
-// SDK yüklenene kadar bekle
-function waitForSDK(timeout = 5000) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const check = () => {
-      if (window.__sdkReady && window.__LiveAvatarSDK) {
-        resolve(window.__LiveAvatarSDK);
-      } else if (Date.now() - start > timeout) {
-        reject(new Error('SDK timeout'));
-      } else {
-        setTimeout(check, 100);
-      }
-    };
-    check();
-  });
-}
-
+// Ana oturum başlatma
 async function startSession() {
   const name = document.getElementById('personName').value.trim() || 'Sevgili';
   const rel = document.getElementById('relation').value.trim() || 'yakınınız';
   const ctx = document.getElementById('context').value.trim();
-  window._session = { name, rel, ctx, voiceId: selectedVoiceId };
+
+  window._session = { name, rel, ctx };
 
   document.getElementById('startBtn').disabled = true;
-  document.getElementById('startBtn').textContent = 'Bağlanıyor...';
-  setProgress(10, 'SDK yükleniyor...');
-
-  // Kullanıcı kamerasını aç
-  try {
-    userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    document.getElementById('userVideo').srcObject = userStream;
-  } catch(e) { console.warn('Kamera:', e); }
-
-  initSpeech();
+  setProgress(10, 'Token alınıyor...');
 
   try {
-    // SDK yüklenene kadar bekle
-    const SDK = await waitForSDK();
-    console.log('[SDK] Mevcut exportlar:', Object.keys(SDK));
-    setProgress(30, 'Token alınıyor...');
-
-    // Backend'den HeyGen token al
-    const r = await fetch(`${BACKEND}/api/chat/heygen-token`, { method: 'POST' });
-    const d = await r.json();
-    const token = d.token;
-    console.log('[HeyGen] token alındı:', token ? token.substring(0,20)+'...' : 'BOŞ');
-
+    // 1. Backend'den token al
+    const tokenResp = await fetch(`${BACKEND}/api/chat/heygen-token`, { method: 'POST' });
+    if (!tokenResp.ok) throw new Error('Token alınamadı: ' + await tokenResp.text());
+    const { token } = await tokenResp.json();
+    console.log('[HeyGen] Token alındı:', token ? token.substring(0,20)+'...' : 'BOŞ');
     if (!token) throw new Error('Token boş geldi');
 
-    setProgress(60, 'Avatar bağlanıyor...');
+    setProgress(30, 'Kamera başlatılıyor...');
+    await startUserCam();
+    initSpeech();
 
-    // SDK'dan doğru class'ı bul
-    const SessionClass = SDK.LiveAvatarSession || SDK.default?.LiveAvatarSession || SDK.LiveAvatar || SDK.default;
-    console.log('[SDK] SessionClass:', SessionClass);
-    if (!SessionClass) throw new Error('SDK\'da LiveAvatarSession bulunamadı. Exportlar: ' + Object.keys(SDK).join(', '));
+    setProgress(50, 'Avatar bağlanıyor...');
 
-    avatar = new SessionClass({ token });
+    // 2. LiveAvatar SDK ile oturum başlat
+    const { LiveAvatarSession } = window.LiveAvatarWebSDK || window;
 
-    avatar.on('session_ready', (event) => {
-      console.log('[LiveAvatar] session ready!', event);
-      const vid = document.getElementById('avatarVideo');
-      if (event.stream) vid.srcObject = event.stream;
-      vid.style.display = 'block';
+    liveAvatarSession = new LiveAvatarSession(token, {
+      avatarId: selectedAvatarId,
+      voiceChat: false, // Biz kendi STT/TTS yönetiyoruz
+    });
+
+    // Video stream geldiğinde
+    liveAvatarSession.on('stream', (stream) => {
+      const video = document.getElementById('avatarVideo');
+      video.srcObject = stream;
+      video.style.display = 'block';
       document.getElementById('placeholder').style.display = 'none';
-      document.getElementById('statusText').textContent = 'Bağlandı ✓';
-      document.getElementById('micBtn').disabled = false;
-      addBubble('avatar', `Selam ${name.split(' ')[0]}... Seni çok özledim.`);
+      setProgress(100, 'Bağlandı!');
+      setTimeout(() => {
+        document.getElementById('setup').style.display = 'none';
+        document.getElementById('avName').textContent = name;
+        document.getElementById('avRel').textContent = rel.toUpperCase();
+        document.getElementById('statusText').textContent = 'Bağlandı ✓';
+        document.getElementById('micBtn').disabled = false;
+        addBubble('avatar', `${name}... Seni çok özledim.`);
+        showWave(3000);
+      }, 500);
     });
 
-    avatar.on('error', (err) => {
-      console.error('[LiveAvatar] error event:', err);
+    liveAvatarSession.on('error', (err) => {
+      console.error('[LiveAvatar] Hata:', err);
+      document.getElementById('statusText').textContent = 'Bağlantı hatası';
     });
 
-    await avatar.startSession({
-      avatar_id: AVATAR_ID,
-      mode: 'FULL',
+    liveAvatarSession.on('disconnected', () => {
+      document.getElementById('statusText').textContent = 'Bağlantı kesildi';
     });
 
-    setProgress(100, 'Hazır!');
-    await new Promise(r => setTimeout(r, 500));
-    document.getElementById('setup').style.display = 'none';
-    document.getElementById('avName').textContent = name;
-    document.getElementById('avRel').textContent = rel;
-    document.getElementById('statusText').textContent = 'Bağlanıyor...';
+    setProgress(70, 'Oturum başlatılıyor...');
+    await liveAvatarSession.start();
+    setProgress(90, 'Avatar yükleniyor...');
 
   } catch(e) {
-    console.error('[HeyGen] hata:', e);
-    setProgress(100, 'Demo modda devam ediliyor...');
-    await new Promise(r => setTimeout(r, 500));
+    console.error('[Oturum] Hata:', e);
+    // Hata olursa demo modda devam et
     document.getElementById('setup').style.display = 'none';
-    document.getElementById('avName').textContent = name;
-    document.getElementById('avRel').textContent = rel;
-    document.getElementById('statusText').textContent = 'Demo mod';
+    document.getElementById('avName').textContent = window._session.name;
+    document.getElementById('avRel').textContent = window._session.rel.toUpperCase();
+    document.getElementById('statusText').textContent = 'Demo modda çalışıyor';
     document.getElementById('micBtn').disabled = false;
-    addBubble('avatar', `Selam ${name.split(' ')[0]}... Seni çok özledim.`);
+    addBubble('avatar', `${window._session.name}... Seni çok özledim.`);
   }
 }
 
+// Avatar'a konuştur
+async function speakAvatar(text) {
+  if (!liveAvatarSession) return;
+  try {
+    await liveAvatarSession.speak(text);
+    showWave(Math.max(2000, text.length * 80));
+  } catch(e) {
+    console.warn('[speak] Hata:', e);
+    showWave(3000);
+  }
+}
+
+// Kullanıcı metnini işle
+async function processText(text) {
+  if (!text) return;
+  addBubble('user', text);
+  addBubble('typing', '...');
+  startTimer();
+
+  const s = window._session || {};
+  try {
+    const formData = new FormData();
+    formData.append('person_name', s.name || 'Sevgili');
+    formData.append('relation', s.rel || 'yakınınız');
+    formData.append('context', s.ctx || '');
+    formData.append('user_text', text);
+
+    const resp = await fetch(`${BACKEND}/api/chat/respond`, { method: 'POST', body: formData });
+    if (resp.ok) {
+      const data = await resp.json();
+      removeTyping();
+      addBubble('avatar', data.response);
+
+      // Önce LiveAvatar ile konuştur, yoksa ses çal
+      if (liveAvatarSession) {
+        await speakAvatar(data.response);
+      } else if (data.audio_b64) {
+        const audio = new Audio(`data:audio/mp3;base64,${data.audio_b64}`);
+        audio.play().catch(() => {});
+        showWave(4000);
+      }
+      return;
+    }
+  } catch(e) { console.warn('Backend:', e); }
+
+  removeTyping();
+  const demos = ['Seni çok özledim. Her gün aklımdasın.','Biliyorum, çok zor. Ama sen güçlüsün.','Seni seviyorum. Kendine iyi bak.'];
+  const resp = demos[Math.floor(Math.random() * demos.length)];
+  addBubble('avatar', resp);
+  if (liveAvatarSession) await speakAvatar(resp);
+  else showWave(3500);
+}
+
+// Timer
 function startTimer() {
   if (timerStarted) return;
   timerStarted = true;
@@ -320,111 +373,55 @@ function startTimer() {
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
       document.getElementById('micBtn').disabled = true;
-      addBubble('avatar', 'Süre doldu... Bu anı hep kalbimde taşıyacağım.');
-      showWave(5000);
+      const farewell = 'Süre doldu... Bu anı hep kalbimde taşıyacağım.';
+      addBubble('avatar', farewell);
+      if (liveAvatarSession) speakAvatar(farewell);
+      else showWave(5000);
     }
   }, 1000);
 }
 
-function toggleListen() {
-  if (listening) stopListening();
-  else startListening();
-}
-
+// Dinleme
+function toggleListen() { listening ? stopListening() : startListening(); }
 function startListening() {
   if (timeLeft <= 0) return;
   listening = true;
   startTimer();
   document.getElementById('micBtn').classList.add('rec');
   document.getElementById('listeningIndicator').classList.add('on');
-  if (recognition) try { recognition.start(); } catch(e) {}
+  if (recognition) { try { recognition.start(); } catch(e) {} }
 }
-
 function stopListening() {
   listening = false;
   document.getElementById('micBtn').classList.remove('rec');
   document.getElementById('listeningIndicator').classList.remove('on');
-  if (recognition) try { recognition.stop(); } catch(e) {}
+  if (recognition) { try { recognition.stop(); } catch(e) {} }
 }
 
-async function processText(text) {
-  if (!text) return;
-  addBubble('user', text);
-  addBubble('typing', '...');
-
-  const s = window._session || {};
-  try {
-    const formData = new FormData();
-    formData.append('person_name', s.name || 'Sevgili');
-    formData.append('relation', s.rel || 'yakınınız');
-    formData.append('context', s.ctx || '');
-    formData.append('user_text', text);
-    formData.append('voice_id', s.voiceId || 'FYPltOzsM2n1UbqzX19d');
-
-    const resp = await fetch(`${BACKEND}/api/chat/respond`, { method: 'POST', body: formData });
-    if (resp.ok) {
-      const data = await resp.json();
-      removeTyping();
-      addBubble('avatar', data.response);
-      showWave(4000);
-
-      if (avatar && data.response) {
-        try {
-          await avatar.speak({ text: data.response, taskType: 'repeat' });
-        } catch(e) {
-          console.warn('[HeyGen] speak hata:', e);
-          if (data.audio_b64) {
-            const audio = new Audio(`data:audio/mp3;base64,${data.audio_b64}`);
-            audio.play().catch(() => {});
-          }
-        }
-      } else if (data.audio_b64) {
-        const audio = new Audio(`data:audio/mp3;base64,${data.audio_b64}`);
-        audio.play().catch(() => {});
-      }
-      return;
-    }
-  } catch(e) { console.warn('Backend:', e); }
-
-  removeTyping();
-  const demos = ['Seni çok özledim. Her gün aklımdasın.', 'Biliyorum, çok zor. Ama sen güçlüsün.', 'Seni seviyorum. Kendine iyi bak.'];
-  addBubble('avatar', demos[Math.floor(Math.random() * demos.length)]);
-  showWave(3500);
-}
-
+// UI yardımcıları
 function addBubble(type, text) {
   const tr = document.getElementById('transcript');
   while (tr.children.length >= 3) tr.removeChild(tr.firstChild);
   const div = document.createElement('div');
   div.className = `bubble ${type}`;
   div.textContent = text;
-  if (type === 'typing') div.id = 'typingBubble';
+  div.id = type === 'typing' ? 'typingBubble' : '';
   tr.appendChild(div);
 }
-
-function removeTyping() {
-  const el = document.getElementById('typingBubble');
-  if (el) el.remove();
-}
-
-function showWave(dur) {
-  const w = document.getElementById('wave');
-  w.classList.add('on');
-  setTimeout(() => w.classList.remove('on'), dur);
-}
-
+function removeTyping() { const el = document.getElementById('typingBubble'); if (el) el.remove(); }
+function showWave(dur) { const w = document.getElementById('wave'); w.classList.add('on'); setTimeout(() => w.classList.remove('on'), dur); }
 function toggleMute() {
   muted = !muted;
   document.getElementById('muteBtn').classList.toggle('off', muted);
   document.getElementById('muteBtn').textContent = muted ? '🔇' : '🎤';
+  if (userStream) userStream.getAudioTracks().forEach(t => t.enabled = !muted);
 }
-
 function endCall() {
   if (confirm('Görüşmeyi bitirmek istiyor musunuz?')) {
     clearInterval(timerInterval);
     if (userStream) userStream.getTracks().forEach(t => t.stop());
-    if (avatar) try { avatar.stopAvatar(); } catch(e) {}
-    if (recognition) try { recognition.stop(); } catch(e) {}
+    if (liveAvatarSession) { try { liveAvatarSession.stop(); } catch(e) {} }
+    if (recognition) { try { recognition.stop(); } catch(e) {} }
     document.body.innerHTML = `<div style="background:#000;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;"><p style="color:#c8a96e;font-size:16px;letter-spacing:3px">GÖRÜŞME SONA ERDİ</p><p style="color:rgba(255,255,255,.3);font-size:13px;text-align:center;line-height:2">Bu anı hep kalbinizde taşıyın.<br><a href="/" style="color:#c8a96e;text-decoration:none">← HatırAI</a></p></div>`;
   }
 }
