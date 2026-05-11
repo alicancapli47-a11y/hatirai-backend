@@ -1869,6 +1869,7 @@ async def admin_all(_: str = Depends(require_admin)):
 async def heygen_token():
     import httpx
     api_key = os.environ.get("LIVEAVATAR_API_KEY", "")
+    avatar_id = os.environ.get("LIVEAVATAR_AVATAR_ID", "fc4125a5-83fa-45e2-8574-bf657ac19998")
     if not api_key:
         raise HTTPException(status_code=500, detail="LIVEAVATAR_API_KEY eksik")
     try:
@@ -1876,7 +1877,18 @@ async def heygen_token():
             resp = await hc.post(
                 "https://api.liveavatar.com/v1/sessions/token",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"mode": "FULL"},
+                json={
+                    "mode": "FULL",
+                    "avatar_id": avatar_id,
+                    "avatar_persona": {
+                        "prompt": (
+                            "You are a warm, loving family member speaking Turkish. "
+                            "Respond with short, emotional, sincere sentences in Turkish. "
+                            "You deeply miss the person you are speaking to. "
+                            "Keep responses under 2 sentences."
+                        )
+                    },
+                },
                 timeout=15,
             )
             logger.info(f"[heygen-token] {resp.status_code} {resp.text[:300]}")
