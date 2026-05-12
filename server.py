@@ -2317,6 +2317,14 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
     photos: [{"b64": "...", "role": "Me", "relation": "father"}]
     """
     import tempfile as _tf
+    logger.info(f"[seedance {job_id}] Pipeline başladı, concept={concept}, photos={len(photos)}")
+    if not photos:
+        logger.error(f"[seedance {job_id}] Fotoğraf yok, pipeline durduruluyor")
+        await db.seedance_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "failed", "error": "Fotograf bulunamadi"}}
+        )
+        return
     try:
         concept_data = SEEDANCE_CONCEPTS.get(concept, SEEDANCE_CONCEPTS["sahil"])
         base_prompt = concept_data["prompt"]
@@ -2449,8 +2457,8 @@ async def seedance_payment_init(request: Request):
             raise HTTPException(status_code=400, detail="Zaten odendi")
 
         api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
-        variant_id = "1643185"
-        store_id = "370282"
+        variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID", "1643185")
+        store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "370282")
 
         async with httpx.AsyncClient() as hc:
             resp = await hc.post(
