@@ -129,7 +129,7 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 <body>
 
 <div class="header">
-  <a class="back-btn" href="/">← GERİ</a>
+  <a class="back-btn" onclick="history.length > 1 ? history.back() : window.location.href='https://hatirai.com'" style="cursor:pointer">← GERİ</a>
   <a class="brand" href="/">HATIR<span>AI</span></a>
   <div class="header-right" id="headerRight">
     <span class="header-link user-name" id="headerUser" style="display:none"></span>
