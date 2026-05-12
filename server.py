@@ -652,11 +652,24 @@ def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
         font_path = next((f for f in font_candidates if os.path.exists(f)), None)
 
         if font_path:
+            # HATIRAI — HATIR beyaz, AI gold, üst orta + alt hatirai.com
             draw = (
-                f"drawtext=fontfile='{font_path}':text='HatirAI':"
-                f"fontcolor=0xE6C36A@0.85:fontsize=h/26:"
-                f"x=w-tw-24:y=h-th-24:"
-                f"box=1:boxcolor=black@0.35:boxborderw=10"
+                # Gölge
+                f"drawtext=fontfile='{font_path}':text='HATIRAI':"
+                f"fontcolor=black@0.6:fontsize=h/18:"
+                f"x=(w-tw)/2+2:y=h/20+2,"
+                # HATIRAI beyaz
+                f"drawtext=fontfile='{font_path}':text='HATIRAI':"
+                f"fontcolor=0xF4F1EA@0.92:fontsize=h/18:"
+                f"x=(w-tw)/2:y=h/20,"
+                # AI gold üstüne
+                f"drawtext=fontfile='{font_path}':text='AI':"
+                f"fontcolor=0xC9A961@1.0:fontsize=h/18:"
+                f"x=(w-tw)/2+(tw)*5/7:y=h/20,"
+                # Alt hatirai.com
+                f"drawtext=fontfile='{font_path}':text='hatirai.com':"
+                f"fontcolor=0xF4F1EA@0.28:fontsize=h/52:"
+                f"x=(w-tw)/2:y=h-h/14"
             )
             vf_args = ["-vf", draw]
         else:
