@@ -199,8 +199,15 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
   <span class="section-title">SAHNE</span>
   <div class="concepts" id="concepts"></div>
 
-  <button class="generate-btn" id="generateBtn" onclick="generate()" disabled>VİDEOYU OLUŞTUR</button>
-  <p class="hint">~1-2 dakika · 720p · Sesli · 8 saniye</p>
+  <button class="generate-btn" id="generateBtn" onclick="generate()" disabled>💳 ÖDEME YAP · VİDEOYU OLUŞTUR</button>
+  <p class="hint">~1-2 dakika · 480p · Sesli · 15 saniye</p>
+
+  <!-- Admin section - sadece administrator görür -->
+  <div id="adminSection" style="display:none; margin-top:12px;">
+    <button onclick="adminFree()" id="adminBtn" style="width:100%;padding:14px;background:rgba(201,169,97,0.08);border:1px solid rgba(201,169,97,0.4);color:#C9A961;font-family:'Courier New',monospace;font-size:11px;letter-spacing:3px;cursor:pointer;text-transform:uppercase;">
+      ⚡ ADMİN · ÜCRETSİZ OLUŞTUR
+    </button>
+  </div>
 
   <div class="result-area" id="resultArea">
     <div class="progress-box" id="progressBox">
@@ -226,12 +233,29 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 
 <script>
 const BACKEND = 'https://hatirai-backend-production.up.railway.app';
-const photos = {0:null,1:null,2:null,3:null};
-const relations = {0:'myself',1:null,2:null,3:null};
+let photos = {0:null,1:null,2:null,3:null};
+let relations = {0:'myself',1:null,2:null,3:null};
 const REL_EN = { myself:'the person (me)', father:'father', mother:'mother', spouse:'spouse', child:'child', sibling:'sibling', friend:'friend' };
 let selectedConcept = null, currentJobId = null, pollInterval = null;
 const STAGES = ['SAHNE HAZIRLANIYOR','KİŞİLER YERLEŞTİRİLİYOR','HAREKET ÜRETİLİYOR','SES EKLENİYOR','FİNAL RENDER'];
 let stageIdx = 0, stageTimer = null;
+let isAdmin = false;
+
+// Admin kontrolü
+async function checkAdmin() {
+  try {
+    const token = localStorage.getItem('session_token');
+    if (!token) return;
+    const r = await fetch(`${BACKEND}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) {
+      const u = await r.json();
+      isAdmin = u.is_admin === true;
+      if (isAdmin) {
+        document.getElementById('adminSection').style.display = 'block';
+      }
+    }
+  } catch(e) {}
+}
 
 function triggerUpload(i) { document.getElementById(`input_${i}`).click(); }
 
@@ -306,50 +330,114 @@ async function loadConcepts() {
   } catch(e) { console.error(e); }
 }
 
+// Fotoğrafları DB'ye gönder, job_id al
+async function createJob() {
+  const fd = new FormData();
+  fd.append('concept', selectedConcept);
+  let si = 0;
+  for (let i = 0; i < 4; i++) {
+    if (!photos[i]) continue;
+    fd.append(`photo_${si}`, photos[i].file);
+    fd.append(`role_${si}`, i === 0 ? 'Me' : `Person ${i+1}`);
+    fd.append(`relation_${si}`, REL_EN[relations[i]] || 'person');
+    si++;
+  }
+  const r = await fetch(`${BACKEND}/api/seedance/create`, { method:'POST', body:fd });
+  if (!r.ok) throw new Error(await r.text());
+  return await r.json();
+}
+
+// Ödeme butonu
 async function generate() {
-  clearInterval(pollInterval); clearInterval(stageTimer);
-  stageIdx = 0;
+  document.getElementById('generateBtn').disabled = true;
+  try {
+    const data = await createJob();
+    currentJobId = data.job_id;
+
+    // Lemonsqueezy ödeme sayfasına yönlendir
+    const token = localStorage.getItem('session_token');
+    const pr = await fetch(`${BACKEND}/api/seedance/payment/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ job_id: currentJobId })
+    });
+    if (!pr.ok) throw new Error(await pr.text());
+    const pdata = await pr.json();
+    window.open(pdata.checkout_url, '_blank');
+
+    // Ödeme sonrası polling başlat
+    showProcessing();
+    startPolling();
+  } catch(e) {
+    document.getElementById('generateBtn').disabled = false;
+    alert('Hata: ' + (e.message || 'Bilinmeyen hata'));
+  }
+}
+
+// Admin ücretsiz üret
+async function adminFree() {
+  if (!currentJobId) {
+    // Önce job oluştur
+    try {
+      document.getElementById('adminBtn').disabled = true;
+      const data = await createJob();
+      currentJobId = data.job_id;
+    } catch(e) {
+      alert('Job oluşturulamadı: ' + e.message);
+      document.getElementById('adminBtn').disabled = false;
+      return;
+    }
+  }
+  try {
+    const token = localStorage.getItem('session_token');
+    const r = await fetch(`${BACKEND}/api/seedance/admin-free/${currentJobId}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!r.ok) throw new Error(await r.text());
+    showProcessing();
+    startPolling();
+  } catch(e) {
+    alert('Admin hata: ' + e.message);
+    document.getElementById('adminBtn').disabled = false;
+  }
+}
+
+function showProcessing() {
+  clearInterval(stageTimer); stageIdx = 0;
   document.getElementById('resultArea').classList.add('show');
   document.getElementById('progressBox').style.display = 'block';
   document.getElementById('videoBox').style.display = 'none';
   document.getElementById('errorBox').style.display = 'none';
   document.getElementById('progressFill').style.width = '5%';
   document.getElementById('stageText').textContent = STAGES[0];
-  document.getElementById('generateBtn').disabled = true;
   stageTimer = setInterval(() => {
     stageIdx = (stageIdx + 1) % STAGES.length;
     document.getElementById('stageText').textContent = STAGES[stageIdx];
   }, 8000);
+}
 
-  try {
-    const fd = new FormData();
-    fd.append('concept', selectedConcept);
-    let si = 0;
-    for (let i = 0; i < 4; i++) {
-      if (!photos[i]) continue;
-      fd.append(`photo_${si}`, photos[i].file);
-      fd.append(`role_${si}`, i === 0 ? 'Me' : `Person ${i+1}`);
-      fd.append(`relation_${si}`, REL_EN[relations[i]] || 'person');
-      si++;
-    }
-    const r = await fetch(`${BACKEND}/api/seedance/create`, { method:'POST', body:fd });
-    if (!r.ok) throw new Error(await r.text());
-    const data = await r.json();
-    currentJobId = data.job_id;
-
-    let elapsed = 0;
-    pollInterval = setInterval(async () => {
-      elapsed += 3;
-      document.getElementById('progressFill').style.width = Math.min(90, 5 + elapsed * 1.2) + '%';
-      document.getElementById('progressLabel').textContent = `~${Math.max(0, 120-elapsed)} saniye...`;
-      try {
-        const jr = await fetch(`${BACKEND}/api/seedance/job/${currentJobId}`);
-        const job = await jr.json();
-        if (job.status === 'ready') { clearInterval(pollInterval); clearInterval(stageTimer); document.getElementById('progressFill').style.width='100%'; setTimeout(()=>showVideo(job.video_url),400); }
-        else if (job.status === 'failed') { clearInterval(pollInterval); clearInterval(stageTimer); showError(job.error||'Üretim başarısız.'); }
-      } catch(e) {}
-    }, 3000);
-  } catch(e) { clearInterval(stageTimer); showError(e.message||'Hata.'); }
+function startPolling() {
+  clearInterval(pollInterval);
+  let elapsed = 0;
+  pollInterval = setInterval(async () => {
+    elapsed += 3;
+    document.getElementById('progressFill').style.width = Math.min(90, 5 + elapsed * 0.8) + '%';
+    document.getElementById('progressLabel').textContent = `~${Math.max(0, 150-elapsed)} saniye...`;
+    try {
+      const jr = await fetch(`${BACKEND}/api/seedance/job/${currentJobId}`);
+      const job = await jr.json();
+      if (job.status === 'ready') {
+        clearInterval(pollInterval); clearInterval(stageTimer);
+        document.getElementById('progressFill').style.width = '100%';
+        setTimeout(() => showVideo(job.video_url), 400);
+      } else if (job.status === 'failed') {
+        clearInterval(pollInterval); clearInterval(stageTimer);
+        showError(job.error || 'Üretim başarısız.');
+      }
+      // awaiting_payment durumunda polling devam eder
+    } catch(e) {}
+  }, 3000);
 }
 
 function showVideo(url) {
@@ -357,6 +445,7 @@ function showVideo(url) {
   document.getElementById('videoBox').style.display = 'block';
   document.getElementById('resultVideo').src = url;
   document.getElementById('generateBtn').disabled = false;
+  if (document.getElementById('adminBtn')) document.getElementById('adminBtn').disabled = false;
   window._videoUrl = url;
   document.getElementById('resultArea').scrollIntoView({behavior:'smooth'});
 }
@@ -365,6 +454,7 @@ function showError(msg) {
   document.getElementById('errorBox').style.display = 'block';
   document.getElementById('errorText').textContent = msg.substring(0,200);
   document.getElementById('generateBtn').disabled = false;
+  if (document.getElementById('adminBtn')) document.getElementById('adminBtn').disabled = false;
 }
 function downloadVideo() {
   if (!window._videoUrl) return;
@@ -379,6 +469,7 @@ async function shareVideo() {
 }
 
 loadConcepts();
+checkAdmin();
 </script>
 </body>
 </html>
