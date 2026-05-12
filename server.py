@@ -1949,20 +1949,6 @@ SEEDANCE_CONCEPTS = {
             "Mix of fast action cuts and slow warm moments, firelight color grade."
         ),
     },
-    "western": {
-        "label": "Western",
-        "emoji": "🤠",
-        "prompt": (
-            "Fast-cut epic Western action video, no dialogue, dramatic Ennio Morricone-style score. "
-            "[Shot 1 - Low wide, 2s] {people} on horseback galloping full speed across desert, dust storm rising behind them, golden hour light. "
-            "[Shot 2 - Close tracking, 1.5s] Riding side by side, hats pulled low, intense expressions, hooves thundering. "
-            "[Shot 3 - Slow motion, 1s] Horses rearing up dramatically, silhouettes against a blazing orange sky. "
-            "[Shot 4 - POV, 1.5s] Racing toward camera at full gallop, thunderous and epic. "
-            "[Shot 5 - Wide cliff, 2s] Both stop at canyon edge, looking out at vast landscape, wind blowing dramatically. "
-            "Epic quick cuts, wide angles, dusty Western color grade."
-        ),
-    },
-
     # ── ROMANTİK ─────────────────────────────────────────────────────────
     "kir": {
         "label": "Kırda Buluşma",
@@ -2297,7 +2283,7 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
                 "resolution": "480p",
                 "duration": "15",
                 "aspect_ratio": "9:16",
-                "generate_audio": True,
+                "generate_audio": False,
             },
         )
         result = await handle.get()
