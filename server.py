@@ -636,7 +636,7 @@ def _ffmpeg_last_frame(video_path: str, frame_path: str) -> None:
 
 
 def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
-    """Clipları birlestir ve kose filigran ekle."""
+    """Clipları birlestir ve logo watermark ekle."""
     tmp = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False)
     try:
         for p in video_paths:
@@ -644,45 +644,34 @@ def _ffmpeg_concat(video_paths: List[str], out_path: str) -> None:
         tmp.flush()
         tmp.close()
 
-        font_candidates = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        logo_candidates = [
+            "/app/hatirai_logo_watermark.png",
+            os.path.join(str(ROOT_DIR), "hatirai_logo_watermark.png"),
         ]
-        font_path = next((f for f in font_candidates if os.path.exists(f)), None)
+        logo_path = next((p for p in logo_candidates if os.path.exists(p)), None)
 
-        if font_path:
-            # HATIRAI — HATIR beyaz, AI gold, üst orta + alt hatirai.com
-            draw = (
-                # Gölge
-                f"drawtext=fontfile='{font_path}':text='HATIRAI':"
-                f"fontcolor=black@0.6:fontsize=h/18:"
-                f"x=(w-tw)/2+2:y=h/20+2,"
-                # HATIRAI beyaz
-                f"drawtext=fontfile='{font_path}':text='HATIRAI':"
-                f"fontcolor=0xF4F1EA@0.92:fontsize=h/18:"
-                f"x=(w-tw)/2:y=h/20,"
-                # AI gold üstüne
-                f"drawtext=fontfile='{font_path}':text='AI':"
-                f"fontcolor=0xC9A961@1.0:fontsize=h/18:"
-                f"x=(w-tw)/2+(tw)*5/7:y=h/20,"
-                # Alt hatirai.com
-                f"drawtext=fontfile='{font_path}':text='hatirai.com':"
-                f"fontcolor=0xF4F1EA@0.28:fontsize=h/52:"
-                f"x=(w-tw)/2:y=h-h/14"
+        if logo_path:
+            vf = (
+                f"[1:v]scale=iw*0.35:-1,format=rgba,colorchannelmixer=aa=0.75[logo];"
+                f"[0:v][logo]overlay=(W-w)/2:H-h-50"
             )
-            vf_args = ["-vf", draw]
+            cmd = [
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", tmp.name,
+                "-i", logo_path,
+                "-filter_complex", vf,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+                "-c:a", "aac", "-b:a", "128k",
+                out_path,
+            ]
         else:
-            vf_args = []
-            logger.warning("[watermark] Font bulunamadi, filigransiz video")
+            logger.warning("[watermark] Logo bulunamadi, filigransiz video")
+            cmd = [
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", tmp.name,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+                "-c:a", "aac", "-b:a", "128k",
+                out_path,
+            ]
 
-        cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", tmp.name,
-            *vf_args,
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-            "-c:a", "aac", "-b:a", "128k",
-            out_path,
-        ]
         subprocess.run(cmd, check=True, capture_output=True, timeout=300)
     finally:
         try:
