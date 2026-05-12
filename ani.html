@@ -489,6 +489,20 @@ async function doLogout() {
 
 loadConcepts();
 initHeader();
+
+// Ödeme sonrası geri dönüşte otomatik polling başlat
+(function checkReturnFromPayment() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const jobId = urlParams.get('job');
+  if (jobId) {
+    currentJobId = jobId;
+    showProcessing();
+    startPolling();
+    // URL'den job parametresini temizle
+    const newUrl = window.location.pathname + (urlParams.get('token') ? `?token=${urlParams.get('token')}` : '');
+    window.history.replaceState({}, '', newUrl);
+  }
+})();
 </script>
 </body>
 </html>
