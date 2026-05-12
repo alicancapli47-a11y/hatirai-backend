@@ -2211,10 +2211,8 @@ class SeedanceJobModel(BaseModel):
 
 async def _add_seedance_watermark(job_id: str, video_url: str) -> Optional[str]:
     """
-    9:16 videoya HATIR ◆ AI watermark ekle — ffmpeg, kredi harcamaz.
-    Ust orta: HATIR (beyaz) ◆ (gold) AI (gold)
-    Alt orta: hatirai.com (soluk)
-    Basarisiz olursa None doner, orijinal video kullanilir.
+    9:16 videoya HATIRAI logo PNG overlay ekle — altta ortada, %35 genişlik, %75 opaklık.
+    Başarısız olursa None döner, orijinal video kullanılır.
     """
     import tempfile as _tf
     workdir = _tf.mkdtemp(prefix=f"wm-{job_id}-")
@@ -2223,67 +2221,29 @@ async def _add_seedance_watermark(job_id: str, video_url: str) -> Optional[str]:
         await asyncio.to_thread(_http_download, video_url, video_local)
         output_local = os.path.join(workdir, "watermarked.mp4")
 
-        font_candidates = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        logo_candidates = [
+            "/app/hatirai_logo_watermark.png",
+            os.path.join(str(ROOT_DIR), "hatirai_logo_watermark.png"),
         ]
-        font_path = next((f for f in font_candidates if os.path.exists(f)), None)
-        if not font_path:
-            logger.warning(f"[watermark] Font bulunamadi, atlanıyor")
+        logo_path = next((p for p in logo_candidates if os.path.exists(p)), None)
+
+        if not logo_path:
+            logger.warning(f"[watermark {job_id}] Logo bulunamadi, atlanıyor")
             return None
 
-        # Üst ortaya: HATIR beyaz + boşluk + AI gold
-        # ◆ sembolü fontlarda olmayabilir, basit | veya · kullanalım
-        # İki ayrı drawtext katmanı: önce HATIR sonra AI, ortaya hizala
-        # Basit yaklaşım: tek metin "HATIR · AI" beyaz + gold efekti yok ama güvenilir
+        logger.info(f"[watermark {job_id}] Logo bulundu: {logo_path}")
 
-        top_y = "h/20"
-        bottom_y = "h-h/14"
-        font_size_main = "h/14"
-        font_size_small = "h/48"
-
-        # 3 katman: HATIR (beyaz) | · (gold) | AI (gold) + alt site
-        # x koordinatları: toplam genişliği hesaplayamayız kolayca,
-        # bu yüzden "HATIR  AI" tek metin beyaz yazıp üstüne AI kısmını gold yazıyoruz
-        # Güvenilir yöntem: her şeyi ayrı drawtext, x offset ile hizala
-
-        # HATIRAI birlesik yaz — HATIR beyaz, AI gold
-        # Yontem: once HATIRAI tamamen beyaz yaz, sonra AI kismini gold ile ustune yaz
-        # AI metni, HATIRAI'nin son 2 karakteri — x offseti: (w+tw_full)/2 - tw_ai
-        # tw ffmpeg'de o anki metnin genisligini verir
-        # HATIR kismi icin x: (w-tw_full)/2 — tam ortada baslangic
-        # AI kismi x: (w-tw_full)/2 + tw_hatir — HATIR'dan sonra baslar
-
-        vf = ",".join([
-            # Gölge — okunabilirlik
-            f"drawtext=fontfile='{font_path}':text='HATIRAI':"
-            f"fontcolor=black@0.6:fontsize={font_size_main}:"
-            f"x=(w-tw)/2+2:y={top_y}+2",
-
-            # HATIRAI tamamen beyaz (altta kalacak)
-            f"drawtext=fontfile='{font_path}':text='HATIRAI':"
-            f"fontcolor=0xF4F1EA@0.93:fontsize={font_size_main}:"
-            f"x=(w-tw)/2:y={top_y}",
-
-            # AI — gold, HATIR'ın hemen sağına konumla
-            # x = (w/2) + (tw_HATIRAI/2) - (tw_AI) — sağdan iki karakter
-            # ffmpeg'de dinamik tw kullanamayız, sabit ratio kullanıyoruz:
-            # HATIRAI = 7 karakter, AI = 2 karakter → AI başlangıcı = %71 oranında
-            f"drawtext=fontfile='{font_path}':text='AI':"
-            f"fontcolor=0xC9A961@1.0:fontsize={font_size_main}:"
-            f"x=(w-tw)/2+(tw)*5/7:y={top_y}",
-
-            # Alt — hatirai.com soluk
-            f"drawtext=fontfile='{font_path}':text='hatirai.com':"
-            f"fontcolor=0xF4F1EA@0.28:fontsize={font_size_small}:"
-            f"x=(w-tw)/2:y={bottom_y}",
-        ])
+        # Logo: genişliğin %35'i, alt ortaya, %75 opaklık
+        vf = (
+            f"[1:v]scale=iw*0.35:-1,format=rgba,colorchannelmixer=aa=0.75[logo];"
+            f"[0:v][logo]overlay=(W-w)/2:H-h-50"
+        )
 
         cmd = [
-            "ffmpeg", "-y", "-i", video_local,
-            "-vf", vf,
+            "ffmpeg", "-y",
+            "-i", video_local,
+            "-i", logo_path,
+            "-filter_complex", vf,
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
             "-c:a", "copy",
             output_local,
@@ -2293,12 +2253,11 @@ async def _add_seedance_watermark(job_id: str, video_url: str) -> Optional[str]:
         )
 
         if result.returncode != 0:
-            logger.warning(f"[watermark] ffmpeg hatasi: {result.stderr.decode()[:300]}")
+            logger.warning(f"[watermark {job_id}] ffmpeg hatasi: {result.stderr.decode()[:300]}")
             return None
 
-        # Watermarklı videoyu fal.ai'ye yükle
         wm_url = await fal_client.upload_file_async(output_local)
-        logger.info(f"[watermark {job_id}] Watermark eklendi: {wm_url}")
+        logger.info(f"[watermark {job_id}] Logo watermark eklendi: {wm_url}")
         return wm_url
 
     except Exception as e:
@@ -2365,7 +2324,7 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
                 "resolution": "480p",
                 "duration": "15",
                 "aspect_ratio": "9:16",
-                "generate_audio": False,
+                "generate_audio": True,
             },
         )
         result = await handle.get()
