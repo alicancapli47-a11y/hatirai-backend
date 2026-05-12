@@ -490,9 +490,7 @@ async function initHeader() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token') || localStorage.getItem('hatirai_session_token');
     if (!token) {
-      // Login sayfasına yönlendir, geri dönüş URL'si ile
-      const returnUrl = encodeURIComponent(window.location.href);
-      window.location.href = `https://hatirai.com/login?return=${returnUrl}`;
+      window.location.href = `https://hatirai.com/login?return=${encodeURIComponent('https://hatirai.com/ani')}`;
       return;
     }
     window._authToken = token;
@@ -510,12 +508,10 @@ async function initHeader() {
     } else {
       // Token geçersiz
       localStorage.removeItem('hatirai_session_token');
-      const returnUrl = encodeURIComponent(window.location.href);
-      window.location.href = `https://hatirai.com/login?return=${returnUrl}`;
+      window.location.href = `https://hatirai.com/login?return=${encodeURIComponent('https://hatirai.com/ani')}`;
     }
   } catch(e) {
-    const returnUrl = encodeURIComponent(window.location.href);
-    window.location.href = `https://hatirai.com/login?return=${returnUrl}`;
+    window.location.href = `https://hatirai.com/login?return=${encodeURIComponent('https://hatirai.com/ani')}`;
   }
 }
 
