@@ -1704,35 +1704,61 @@ async def lemonsqueezy_webhook(request: Request):
         order = data.get("data", {})
         attrs = order.get("attributes", {})
         status = attrs.get("status", "")
-
         if status != "paid":
             return {"status": "ignored"}
 
         meta = data.get("meta", {})
         custom_data = meta.get("custom_data", {})
-        job_id = custom_data.get("job_id", "") or attrs.get("notes", "")
 
-        if not job_id:
+        # Seedance job mu, Veo job mu?
+        seedance_job_id = custom_data.get("seedance_job_id", "")
+        veo_job_id = custom_data.get("job_id", "") or attrs.get("notes", "")
+
+        if seedance_job_id:
+            # Seedance pipeline
+            job = await db.seedance_jobs.find_one({"id": seedance_job_id}, {"_id": 0})
+            if not job:
+                logger.error(f"[lemonsqueezy] Seedance job bulunamadi: {seedance_job_id}")
+                return {"status": "error", "detail": "seedance job not found"}
+            if job.get("payment_status") == "paid":
+                return {"status": "already_paid"}
+            await db.seedance_jobs.update_one(
+                {"id": seedance_job_id},
+                {"$set": {
+                    "payment_status": "paid",
+                    "status": "processing",
+                    "lemonsqueezy_order_id": order.get("id"),
+                    "paid_at": datetime.now(timezone.utc),
+                }}
+            )
+            photos = job.get("photos", [])
+            asyncio.create_task(_run_seedance(seedance_job_id, photos, job["concept"]))
+            logger.info(f"[lemonsqueezy] Seedance odeme onaylandi, pipeline basladi: {seedance_job_id}")
+            return {"status": "ok"}
+
+        elif veo_job_id:
+            # Veo pipeline
+            job = await db.video_jobs.find_one({"id": veo_job_id}, {"_id": 0})
+            if not job:
+                logger.error(f"[lemonsqueezy] Veo job bulunamadi: {veo_job_id}")
+                return {"status": "error", "detail": "veo job not found"}
+            if job.get("payment_status") == "paid":
+                return {"status": "already_paid"}
+            await db.video_jobs.update_one(
+                {"id": veo_job_id},
+                {"$set": {
+                    "payment_status": "paid",
+                    "lemonsqueezy_order_id": order.get("id"),
+                    "paid_at": datetime.now(timezone.utc),
+                }}
+            )
+            asyncio.create_task(_run_veo_pipeline(veo_job_id))
+            logger.info(f"[lemonsqueezy] Veo odeme onaylandi, pipeline basladi: {veo_job_id}")
+            return {"status": "ok"}
+
+        else:
             logger.error("[lemonsqueezy] job_id bulunamadi")
             return {"status": "error", "detail": "job_id missing"}
-
-        job = await db.video_jobs.find_one({"id": job_id}, {"_id": 0})
-        if not job:
-            return {"status": "error", "detail": "job not found"}
-        if job.get("payment_status") == "paid":
-            return {"status": "already_paid"}
-
-        await db.video_jobs.update_one(
-            {"id": job_id},
-            {"$set": {
-                "payment_status": "paid",
-                "lemonsqueezy_order_id": order.get("id"),
-                "paid_at": datetime.now(timezone.utc),
-            }}
-        )
-        asyncio.create_task(_run_veo_pipeline(job_id))
-        logger.info(f"[lemonsqueezy] Odeme islendi, pipeline basladi: {job_id}")
-        return {"status": "ok"}
 
     except HTTPException:
         raise
