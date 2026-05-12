@@ -181,46 +181,6 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
       </div>
     </div>
 
-    <!-- Slot 2: Opsiyonel -->
-    <div class="photo-slot">
-      <div class="slot-role-label">3. KİŞİ <span class="optional-badge">· opsiyonel</span></div>
-      <div class="slot-box optional-slot" id="box_2" onclick="triggerUpload(2)">
-        <span class="slot-icon">➕</span>
-        <span class="slot-label">EKLE</span>
-        <div class="slot-overlay"><span class="slot-change">DEĞİŞTİR</span></div>
-        <button class="slot-remove" onclick="removePhoto(event,2)">✕</button>
-      </div>
-      <input type="file" id="input_2" accept="image/*" style="display:none" onchange="onPhoto(this,2)">
-      <div class="relation-row" id="rel_2" style="display:none">
-        <span class="rel-chip" onclick="setRel(2,'father',this)">Baba</span>
-        <span class="rel-chip" onclick="setRel(2,'mother',this)">Anne</span>
-        <span class="rel-chip" onclick="setRel(2,'spouse',this)">Eş</span>
-        <span class="rel-chip" onclick="setRel(2,'child',this)">Evlat</span>
-        <span class="rel-chip" onclick="setRel(2,'sibling',this)">Kardeş</span>
-        <span class="rel-chip" onclick="setRel(2,'friend',this)">Dost</span>
-      </div>
-    </div>
-
-    <!-- Slot 3: Opsiyonel -->
-    <div class="photo-slot">
-      <div class="slot-role-label">4. KİŞİ <span class="optional-badge">· opsiyonel</span></div>
-      <div class="slot-box optional-slot" id="box_3" onclick="triggerUpload(3)">
-        <span class="slot-icon">➕</span>
-        <span class="slot-label">EKLE</span>
-        <div class="slot-overlay"><span class="slot-change">DEĞİŞTİR</span></div>
-        <button class="slot-remove" onclick="removePhoto(event,3)">✕</button>
-      </div>
-      <input type="file" id="input_3" accept="image/*" style="display:none" onchange="onPhoto(this,3)">
-      <div class="relation-row" id="rel_3" style="display:none">
-        <span class="rel-chip" onclick="setRel(3,'father',this)">Baba</span>
-        <span class="rel-chip" onclick="setRel(3,'mother',this)">Anne</span>
-        <span class="rel-chip" onclick="setRel(3,'spouse',this)">Eş</span>
-        <span class="rel-chip" onclick="setRel(3,'child',this)">Evlat</span>
-        <span class="rel-chip" onclick="setRel(3,'sibling',this)">Kardeş</span>
-        <span class="rel-chip" onclick="setRel(3,'friend',this)">Dost</span>
-      </div>
-    </div>
-
   </div>
 
   <span class="section-title">SAHNE</span>
@@ -263,8 +223,8 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 
 <script>
 const BACKEND = 'https://hatirai-backend-production.up.railway.app';
-let photos = {0:null,1:null,2:null,3:null};
-let relations = {0:'myself',1:null,2:null,3:null};
+let photos = {0:null,1:null};
+let relations = {0:'myself',1:null};
 const REL_EN = { myself:'the person (me)', father:'father', mother:'mother', spouse:'spouse', child:'child', sibling:'sibling', friend:'friend' };
 let selectedConcept = null, currentJobId = null, pollInterval = null;
 const STAGES = ['SAHNE HAZIRLANIYOR','KİŞİLER YERLEŞTİRİLİYOR','HAREKET ÜRETİLİYOR','SES EKLENİYOR','FİNAL RENDER'];
@@ -351,7 +311,7 @@ async function createJob() {
   const fd = new FormData();
   fd.append('concept', selectedConcept);
   let si = 0;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 2; i++) {
     if (!photos[i]) continue;
     fd.append(`photo_${si}`, photos[i].file);
     fd.append(`role_${si}`, i === 0 ? 'Me' : `Person ${i+1}`);
