@@ -2706,6 +2706,37 @@ async def sohbet_page():
 # ===================== APP MOUNT =====================
 app.include_router(api_router)
 
+# ===================== SEO =====================
+from fastapi.responses import PlainTextResponse
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap():
+    content = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://hatirai.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://hatirai.com/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>"""
+    return Response(content=content, media_type="application/xml")
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots():
+    content = """User-agent: *
+Allow: /
+Sitemap: https://hatirai.com/sitemap.xml"""
+    return PlainTextResponse(content=content)
+
+@app.get("/google5207070550b5c3d1.html", include_in_schema=False)
+async def google_verify():
+    return PlainTextResponse("google-site-verification: google5207070550b5c3d1.html")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
