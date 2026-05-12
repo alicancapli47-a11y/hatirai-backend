@@ -2375,7 +2375,7 @@ async def seedance_payment_init(request: Request):
 
         api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
         variant_id = "1643185"
-        store_id = "1047868"
+        store_id = "370282"
 
         async with httpx.AsyncClient() as hc:
             resp = await hc.post(
