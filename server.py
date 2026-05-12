@@ -1873,91 +1873,91 @@ SEEDANCE_CONCEPTS = {
         "label": "Aquapark",
         "emoji": "💦",
         "prompt": (
-            "Cinematic multishot memory video. No dialogue, only music and ambient sound. "
-            "Upbeat summer pop music throughout. "
-            "[Shot 1 - Wide] {people} arrive at a massive water park entrance, laughing and pointing excitedly at the slides. Bright summer noon light, vibrant colors. "
-            "[Shot 2 - Slow motion] They slide down a giant water slide together, arms raised, water exploding around them, huge grins frozen in joy. "
-            "[Shot 3 - Close-up] Faces mid-splash, eyes wide with delight, water droplets catching sunlight like diamonds. "
-            "[Shot 4 - Wide] They float together on inflatable rings in a lazy river, golden afternoon light, relaxed and happy. "
-            "Warm color grade, handheld energy, feel-good summer film aesthetic."
+            "Fast-cut cinematic action video, no dialogue, upbeat summer music. "
+            "[Shot 1 - Low angle wide, 2s] {people} sprint toward a massive water slide entrance, laughing, pointing up at the towering slide. Bright noon sun, saturated colors. "
+            "[Shot 2 - POV tracking, 2s] Rushing down a steep twisting water slide at full speed, water spraying violently left and right, screaming with excitement. "
+            "[Shot 3 - Slow motion 0.5s] The exact moment of splashdown — a massive wall of white water exploding outward, faces frozen mid-scream in joy. "
+            "[Shot 4 - Wide action, 2s] Both racing across a shallow splash pad, soaking each other, sprinting and laughing hysterically. "
+            "[Shot 5 - Close-up, 1s] High five underwater in a pool, bubbles everywhere, huge grins. "
+            "Handheld camera energy, quick cuts every 1-2 seconds, vibrant summer color grade."
         ),
     },
     "lunapark": {
         "label": "Lunapark",
         "emoji": "🎡",
         "prompt": (
-            "Cinematic multishot memory video. No dialogue, only music and ambient sound. "
-            "Dreamy indie pop music throughout. "
-            "[Shot 1 - Wide] {people} walking hand in hand through a glowing fairground at night, colorful lights everywhere, ferris wheel spinning behind them. "
-            "[Shot 2 - Close-up] Sharing cotton candy, laughing, neon reflections in their eyes. "
-            "[Shot 3 - Slow motion] On the ferris wheel at the top, city lights below, looking at each other and smiling. "
-            "[Shot 4 - Wide] Walking away through the crowd, lights bokeh blurring beautifully behind them. "
-            "Warm golden and neon color grade, magical night atmosphere."
+            "Fast-cut cinematic night video, no dialogue, upbeat pop music. "
+            "[Shot 1 - Wide tracking, 2s] {people} running through a glowing fairground at night, colorful lights everywhere, ferris wheel spinning behind them. "
+            "[Shot 2 - Close action, 1.5s] Screaming on a fast spinning ride, hands up, hair flying, neon lights blurring around them. "
+            "[Shot 3 - Slow motion, 1s] Cotton candy pulled apart and shoved in each other's faces, erupting in laughter. "
+            "[Shot 4 - POV, 1.5s] Racing through a bumper car arena, crashing head-on, whiplash reaction and laughing. "
+            "[Shot 5 - Wide, 2s] At the top of the ferris wheel, city lights below, both arms raised triumphantly. "
+            "Quick cuts, handheld shaky energy, warm neon color grade."
         ),
     },
     "dans": {
         "label": "Dans Sahnesi",
         "emoji": "🕺",
         "prompt": (
-            "Cinematic multishot music video. No dialogue, only energetic music. "
-            "Upbeat cinematic music throughout. "
-            "[Shot 1 - Wide] {people} in a stunning dance hall with dramatic lighting, facing each other ready to dance. "
-            "[Shot 2 - Dynamic] They begin dancing together, camera spinning around them, colorful stage lights sweeping. "
-            "[Shot 3 - Slow motion] A dramatic dip move, one holding the other, confetti falling around them. "
-            "[Shot 4 - Close-up] Their faces laughing joyfully mid-dance, pure happiness. "
-            "High contrast dramatic lighting, cinematic color grade, euphoric energy."
+            "Fast-cut energetic dance video, no dialogue, pumping beat music. "
+            "[Shot 1 - Wide, 1.5s] {people} burst onto a dance floor with dramatic spotlight, striking an opening pose. "
+            "[Shot 2 - Close tracking, 2s] Synchronized dance moves, camera spinning rapidly around them, strobe lights firing. "
+            "[Shot 3 - Low angle, 1.5s] Feet moving fast on the floor, rhythm tight, energy explosive. "
+            "[Shot 4 - Slow motion, 1s] One lifts the other dramatically, confetti exploding around them mid-air. "
+            "[Shot 5 - Wide pull-back, 2s] Full crowd around them, everyone cheering as they hit a final pose together. "
+            "Rapid cuts every second, dynamic camera angles, high contrast club lighting."
         ),
     },
     "surf": {
         "label": "Sörf",
         "emoji": "🏄",
         "prompt": (
-            "Cinematic multishot action memory video. No dialogue, only music and ocean sounds. "
-            "Epic cinematic surf music throughout. "
-            "[Shot 1 - Wide] {people} standing on a tropical beach at golden hour, surfboards in hand, looking at massive waves. "
-            "[Shot 2 - Slow motion] Paddling into a huge turquoise wave, water spraying, sun behind them creating a halo. "
-            "[Shot 3 - Dynamic] Riding the wave together, exhilarated expressions, ocean stretching to the horizon. "
-            "[Shot 4 - Close-up] High-five mid-wave, water flying everywhere in slow motion. "
-            "Epic wide cinematography, warm tropical color grade, adrenaline and joy."
+            "Fast-cut extreme action surf video, no dialogue, adrenaline surf music. "
+            "[Shot 1 - Wide drone, 2s] {people} paddling hard into a massive turquoise wave, spray flying. "
+            "[Shot 2 - Side tracking, 2s] Both up on boards riding the face of a huge wave, carving hard, water sheeting off the rails. "
+            "[Shot 3 - Slow motion, 1s] One person launches off the wave lip into the air, board spinning, sun behind them. "
+            "[Shot 4 - Underwater, 1.5s] Wiping out, tumbling underwater in a chaos of bubbles and white foam. "
+            "[Shot 5 - Beach close-up, 1s] Emerging from the water laughing, boards under arms, fist pump to each other. "
+            "Extreme action cuts, GoPro-style angles, tropical color grade."
         ),
     },
     "kar": {
         "label": "Kar Topu Savaşı",
         "emoji": "❄️",
         "prompt": (
-            "Cinematic multishot winter memory video. No dialogue, only playful music and snow sounds. "
-            "Warm cheerful acoustic music throughout. "
-            "[Shot 1 - Wide] {people} in a snow-covered forest clearing, breath visible in cold air, building up snowballs with mischievous grins. "
-            "[Shot 2 - Slow motion] Snowball thrown and hitting with a perfect powder explosion, both erupting in laughter. "
-            "[Shot 3 - Close-up] One catching snowflakes on their tongue, the other watching warmly. "
-            "[Shot 4 - Wide] Both collapsing into the snow making snow angels, laughing up at the grey winter sky. "
-            "Soft cold light, cozy winter color grade, pure joy and warmth."
+            "Fast-cut winter action video, no dialogue, playful energetic music. "
+            "[Shot 1 - Wide, 1.5s] {people} sprint toward each other across a snowy field, both loading up massive snowballs. "
+            "[Shot 2 - Slow motion, 1s] Snowball hits square in the face — powder explosion in perfect detail, shocked expression. "
+            "[Shot 3 - POV chase, 2s] Running full speed through the snow, ducking behind trees, ambushing from behind a snowbank. "
+            "[Shot 4 - Close action, 1.5s] Building and launching snowballs rapid-fire, breath steaming, laughing uncontrollably. "
+            "[Shot 5 - Wide, 1.5s] Both collapse backward into the snow making snow angels, completely exhausted and laughing. "
+            "Quick cuts, handheld action cam style, cold crisp winter colors."
         ),
     },
     "kamp": {
         "label": "Kamp Ateşi",
         "emoji": "🏕️",
         "prompt": (
-            "Cinematic multishot night memory video. No dialogue, only soft music and nature sounds. "
-            "Warm acoustic guitar music throughout. "
-            "[Shot 1 - Wide] {people} arriving at a forest campsite at dusk, setting up a tent, golden light through the trees. "
-            "[Shot 2 - Close-up] Both roasting marshmallows over a glowing campfire, faces lit warmly by the flames, smiling at each other. "
-            "[Shot 3 - Wide] Lying on a blanket staring up at a stunning star-filled sky, the milky way visible above. "
-            "[Shot 4 - Close-up] One resting their head on the other's shoulder, firelight flickering, peaceful and content. "
-            "Deep warm tones, cinematic night photography, intimate and nostalgic."
+            "Cinematic night camp video, no dialogue, warm acoustic music. "
+            "[Shot 1 - Wide, 2s] {people} arrive at campsite at dusk, dropping gear excitedly, starting to set up. "
+            "[Shot 2 - Close action, 1.5s] Rapidly chopping wood, striking flint, a fire roaring to life — fast cut sequence. "
+            "[Shot 3 - Close, 2s] Both roasting marshmallows, one catching fire, panicked blowing it out, laughing. "
+            "[Shot 4 - Wide, 2s] Lying back looking at a stunning star-filled sky, milky way blazing above. "
+            "[Shot 5 - Close warmth, 1.5s] Leaning on each other by the fire, faces glowing orange, smiling peacefully. "
+            "Mix of fast action cuts and slow warm moments, firelight color grade."
         ),
     },
     "western": {
         "label": "Western",
         "emoji": "🤠",
         "prompt": (
-            "Cinematic multishot Western film. No dialogue, only dramatic Western score. "
-            "Epic Ennio Morricone-style music throughout. "
-            "[Shot 1 - Wide] {people} riding horses across a vast desert landscape at golden hour, dust rising behind them, dramatic sky. "
-            "[Shot 2 - Close-up] Both with cowboy hats, exchanging a meaningful glance, wind blowing. "
-            "[Shot 3 - Slow motion] Galloping side by side into the sunset, silhouettes against a burning orange sky. "
-            "[Shot 4 - Wide] Stopping on a cliff edge overlooking a canyon, looking out at the epic landscape together. "
-            "Classic Western color grade, dust and golden light, epic and cinematic."
+            "Fast-cut epic Western action video, no dialogue, dramatic Ennio Morricone-style score. "
+            "[Shot 1 - Low wide, 2s] {people} on horseback galloping full speed across desert, dust storm rising behind them, golden hour light. "
+            "[Shot 2 - Close tracking, 1.5s] Riding side by side, hats pulled low, intense expressions, hooves thundering. "
+            "[Shot 3 - Slow motion, 1s] Horses rearing up dramatically, silhouettes against a blazing orange sky. "
+            "[Shot 4 - POV, 1.5s] Racing toward camera at full gallop, thunderous and epic. "
+            "[Shot 5 - Wide cliff, 2s] Both stop at canyon edge, looking out at vast landscape, wind blowing dramatically. "
+            "Epic quick cuts, wide angles, dusty Western color grade."
         ),
     },
 
@@ -1966,65 +1966,65 @@ SEEDANCE_CONCEPTS = {
         "label": "Kırda Buluşma",
         "emoji": "🌸",
         "prompt": (
-            "Cinematic multishot romantic memory video. No dialogue, only soft romantic music. "
-            "Beautiful emotional strings music throughout. "
-            "[Shot 1 - Wide] {people} running toward each other through a vast field of wildflowers at golden hour, warm backlight creating a halo around them. "
-            "[Shot 2 - Slow motion] They meet and embrace, wildflowers swaying around them, petals carried by the wind. "
-            "[Shot 3 - Close-up] Looking into each other's eyes tenderly, one holding a single red rose, soft smile. "
-            "[Shot 4 - Wide] Walking together through the flower field hand in hand as the sun sets, silhouettes glowing. "
-            "Warm golden hour cinematography, soft bokeh, deeply romantic and emotional."
+            "Romantic cinematic video, no dialogue, emotional strings music. "
+            "[Shot 1 - Wide slow-mo, 2s] {people} running toward each other through a flower field at golden hour, backlit, hair flowing. "
+            "[Shot 2 - Close, 1.5s] They collide in an embrace, spinning, wildflowers scattering around them. "
+            "[Shot 3 - Tight close-up, 1.5s] Foreheads touching, eyes locked, soft smile, single red rose between them. "
+            "[Shot 4 - Wide, 2s] Walking hand in hand through the field, sun setting behind, long golden shadows. "
+            "[Shot 5 - Slow motion, 1.5s] Petals blowing across their faces in the breeze, laughing softly. "
+            "Gentle pacing with emotional beats, golden hour cinematography, warm color grade."
         ),
     },
     "paris": {
         "label": "Paris Sokakları",
         "emoji": "🗼",
         "prompt": (
-            "Cinematic multishot romantic Paris film. No dialogue, only romantic French music. "
-            "Soft accordion and strings music throughout. "
-            "[Shot 1 - Wide] {people} walking through a beautiful Parisian street at dusk, warm cafe lights glowing, Eiffel Tower visible in the distance. "
-            "[Shot 2 - Close-up] Sharing a coffee at a sidewalk cafe, looking at each other over the rim of their cups, smiling. "
-            "[Shot 3 - Slow motion] Walking in the rain under a shared umbrella, Paris lights reflecting on wet cobblestones, leaning close. "
-            "[Shot 4 - Wide] Standing in front of the illuminated Eiffel Tower at night, looking up together in wonder. "
-            "Vintage cinematic color grade, romantic Paris atmosphere, timeless and elegant."
+            "Romantic cinematic Paris video, no dialogue, soft French accordion music. "
+            "[Shot 1 - Wide tracking, 2s] {people} walking fast through busy Parisian streets, dodging crowds, laughing. "
+            "[Shot 2 - Close, 1.5s] Sharing a croissant at a sidewalk café, stealing bites from each other, playful. "
+            "[Shot 3 - Action, 2s] Running across a bridge over the Seine as light rain begins, sharing one umbrella. "
+            "[Shot 4 - Close slow-mo, 1s] Rain drops on the umbrella, their faces close together, smiling. "
+            "[Shot 5 - Wide night, 2s] Eiffel Tower sparkling behind them as they look up in wonder together. "
+            "Mix of playful action and romantic moments, Parisian color grade."
         ),
     },
     "bogaz": {
         "label": "Boğaz'da Gün Batımı",
         "emoji": "🌉",
         "prompt": (
-            "Cinematic multishot romantic Istanbul film. No dialogue, only beautiful ambient music. "
-            "Emotional cinematic music throughout. "
-            "[Shot 1 - Wide] {people} on the deck of a wooden boat on the Bosphorus, Istanbul skyline behind them, mosques and minarets glowing in orange light. "
-            "[Shot 2 - Close-up] Both leaning on the railing, wind in their hair, gazing at the stunning sunset over the water. "
-            "[Shot 3 - Slow motion] One handing the other a single red rose, their fingers touching, warm smiles. "
-            "[Shot 4 - Wide] The boat sailing into the golden sunset, their silhouettes close together, city lights beginning to flicker on. "
-            "Rich warm tones, cinematic Istanbul atmosphere, deeply romantic and iconic."
+            "Romantic Istanbul cinematic video, no dialogue, emotional music. "
+            "[Shot 1 - Wide drone-style, 2s] {people} on a wooden boat deck cutting through Bosphorus waters, Istanbul skyline blazing orange behind them. "
+            "[Shot 2 - Close action, 1.5s] Wind hitting hard, hair flying wildly, both bracing and laughing at the bow. "
+            "[Shot 3 - Slow motion, 1.5s] One hands the other a red rose, fingers touching, warm smile against the golden backdrop. "
+            "[Shot 4 - Wide, 2s] Both leaning on the railing as the sun touches the water, silhouettes glowing. "
+            "[Shot 5 - Close, 1.5s] Looking at each other as the city lights begin flickering on around them. "
+            "Romantic pacing, rich golden Istanbul tones."
         ),
     },
     "mum": {
-        "label": "Mum Işığında Akşam Yemeği",
+        "label": "Mum Işığında Akşam",
         "emoji": "🕯️",
         "prompt": (
-            "Cinematic multishot intimate romantic dinner film. No dialogue, only soft jazz music. "
-            "Warm intimate jazz music throughout. "
-            "[Shot 1 - Wide] {people} at an elegantly set table in a rustic stone room, dozens of candles glowing around them, rose petals on the table. "
-            "[Shot 2 - Close-up] Clinking wine glasses gently, eyes locked, candlelight dancing in their eyes. "
-            "[Shot 3 - Close-up] One reaching across and holding the other's hand on the table, a tender knowing smile. "
-            "[Shot 4 - Slow motion] Rose petals falling softly onto the table, both laughing as one catches a petal. "
-            "Deep warm candlelight tones, intimate and luxurious, deeply romantic."
+            "Intimate romantic dinner video, no dialogue, soft jazz music. "
+            "[Shot 1 - Wide, 2s] {people} sit down at an elegantly set candlelit table, dozens of candles and rose petals everywhere. "
+            "[Shot 2 - Close, 1.5s] Clinking wine glasses, eyes meeting over the rims, candlelight dancing in their pupils. "
+            "[Shot 3 - Action close, 1.5s] One reaches across and steals food from the other's plate, playful protest, laughing. "
+            "[Shot 4 - Slow motion, 1s] Rose petals drifting down onto the table, one catching a petal in their palm. "
+            "[Shot 5 - Close warmth, 2s] Hands intertwined on the table, leaning toward each other across the candles. "
+            "Intimate warm cuts, deep candlelight gold tones."
         ),
     },
     "kapadokya": {
         "label": "Kapadokya Balonları",
         "emoji": "🎈",
         "prompt": (
-            "Cinematic multishot magical Cappadocia film. No dialogue, only dreamy music. "
-            "Ethereal cinematic music throughout. "
-            "[Shot 1 - Wide] {people} standing on a cliff at dawn in Cappadocia, hundreds of colorful hot air balloons rising into a pink and orange sky behind them. "
-            "[Shot 2 - Close-up] Inside a balloon basket, both leaning over the edge in wonder, fairy chimneys stretching below them. "
-            "[Shot 3 - Slow motion] A single balloon drifting close by, the landscape stretching magnificently, their hair blowing in the gentle breeze. "
-            "[Shot 4 - Wide] Watching the balloons drift away as the sun fully rises, arms around each other, breathtaking landscape all around. "
-            "Magical golden dawn light, dreamy color grade, wonder and romance."
+            "Epic cinematic Cappadocia video, no dialogue, sweeping orchestral music. "
+            "[Shot 1 - Wide drone-style, 2s] {people} standing at cliff edge at dawn, hundreds of hot air balloons rising explosively all around them, sky on fire with color. "
+            "[Shot 2 - Action, 1.5s] Racing to the balloon basket, climbing in excitedly, grabbing the rim as it lurches upward. "
+            "[Shot 3 - Wide, 2s] Inside balloon looking straight down — fairy chimneys and valleys far below, breathtaking drop. "
+            "[Shot 4 - Close slow-mo, 1.5s] Wind hitting their faces at altitude, hair and scarves blasting backward, exhilarated expressions. "
+            "[Shot 5 - Wide epic, 2s] Hundreds of balloons surrounding them in every direction as the sun fully rises, overwhelming beauty. "
+            "Epic wide shots with fast action cuts, dawn golden color grade."
         ),
     },
 
@@ -2033,104 +2033,104 @@ SEEDANCE_CONCEPTS = {
         "label": "Uzayda Yürüyüş",
         "emoji": "🌌",
         "prompt": (
-            "Cinematic multishot epic space adventure film. No dialogue, only epic orchestral music. "
-            "Hans Zimmer-style cinematic music throughout. "
-            "[Shot 1 - Wide] {people} in sleek astronaut suits floating in the void of space, Earth glowing blue below them, stars infinite around them. "
-            "[Shot 2 - Close-up] Visors touching in space, their faces visible through the helmets, smiling at each other against a backdrop of galaxies. "
-            "[Shot 3 - Wide] Floating hand in hand past a spectacular ringed planet, aurora-like nebula colors surrounding them. "
-            "[Shot 4 - Slow motion] Both reaching out to touch a passing comet's tail, light streaming past them in slow motion. "
-            "Breathtaking space cinematography, deep blacks and vibrant cosmos colors, epic and awe-inspiring."
+            "Epic space adventure video, no dialogue, Hans Zimmer-style orchestral music. "
+            "[Shot 1 - Wide, 2s] {people} in astronaut suits burst through an airlock into open space, Earth glowing below. "
+            "[Shot 2 - Action, 1.5s] Both firing jetpacks, accelerating through the void, stars streaking past. "
+            "[Shot 3 - Close slow-mo, 1.5s] Visors touching in space, smiling faces visible through helmets, galaxy reflected in the visors. "
+            "[Shot 4 - Wide, 2s] Flying side by side past a massive ringed planet, its rings filling the entire frame. "
+            "[Shot 5 - Epic close, 1.5s] Reaching out together to touch a comet's glowing tail, light exploding around their gloves. "
+            "Epic fast cuts, breathtaking scale, deep space color palette."
         ),
     },
     "ejderha": {
         "label": "Ejderha Üzerinde",
         "emoji": "🐉",
         "prompt": (
-            "Cinematic multishot epic fantasy film. No dialogue, only epic fantasy music. "
-            "Sweeping orchestral fantasy music throughout. "
-            "[Shot 1 - Wide] {people} standing on a mountain peak at sunset, a magnificent dragon landing behind them, wings spreading dramatically. "
-            "[Shot 2 - Dynamic] Both riding on the dragon's back, soaring above clouds, landscape far below, expressions of pure exhilaration. "
-            "[Shot 3 - Slow motion] The dragon swooping through golden clouds, their hair and cloaks streaming, sun breaking through dramatically. "
-            "[Shot 4 - Wide] Landing on a cliff at golden hour, dismounting the dragon, looking out at an epic fantasy landscape together. "
-            "Rich fantasy cinematography, epic scale, golden and dramatic color grade."
+            "Epic fantasy action video, no dialogue, sweeping orchestral fantasy score. "
+            "[Shot 1 - Wide, 2s] {people} sprint across a mountain peak, a massive dragon landing thunderously behind them, wings slamming down. "
+            "[Shot 2 - Action close, 1.5s] Climbing fast onto the dragon's back, grabbing its scales, it lurches upward violently. "
+            "[Shot 3 - Wide POV, 2s] Dragon banking hard through golden clouds at speed, landscape tilting wildly below them, holding on for life. "
+            "[Shot 4 - Slow motion, 1.5s] Dragon swoops directly at camera, wings spread massive, roaring — cut to their exhilarated screaming faces. "
+            "[Shot 5 - Wide epic, 2s] Banking over a vast fantasy landscape at sunset, silhouettes against a blood-orange sky. "
+            "High-energy action cuts, epic fantasy color grade."
         ),
     },
     "okyanus_alti": {
         "label": "Okyanus Altı",
         "emoji": "🌊",
         "prompt": (
-            "Cinematic multishot magical underwater film. No dialogue, only magical ambient music. "
-            "Ethereal underwater ambient music throughout. "
-            "[Shot 1 - Wide] {people} in elegant diving suits sinking slowly into a crystal-clear tropical ocean, rays of sunlight piercing the water above them. "
-            "[Shot 2 - Wide] Swimming side by side through a vast colorful coral reef, schools of tropical fish parting around them like a living curtain. "
-            "[Shot 3 - Close-up] Both stopping to watch a majestic sea turtle gliding past, their faces lit by the blue underwater glow, eyes wide with wonder. "
-            "[Shot 4 - Wide] Swimming upward toward the shimmering surface, sunlight above them, silhouettes rising together through the blue. "
-            "Magical teal and blue tones, magical realism, wonder and serenity."
+            "Magical underwater action video, no dialogue, ethereal ambient music. "
+            "[Shot 1 - Wide, 2s] {people} dive off a boat and plunge deep underwater, bubbles exploding around them as they sink fast. "
+            "[Shot 2 - Action tracking, 2s] Swimming fast through a coral reef, fish scattering explosively in every direction around them. "
+            "[Shot 3 - Close slow-mo, 1.5s] A massive sea turtle glides inches past their faces — wide-eyed shock then delight. "
+            "[Shot 4 - Action, 1.5s] Racing each other through an underwater arch, bubbles trailing, kicking hard. "
+            "[Shot 5 - Wide, 2s] Both shoot upward toward the shimmering surface, reaching up, light breaking through from above. "
+            "Fluid fast cuts, magical teal and blue tones."
         ),
     },
     "buyulu_orman": {
         "label": "Büyülü Orman",
         "emoji": "🧚",
         "prompt": (
-            "Cinematic multishot magical forest fantasy film. No dialogue, only enchanted music. "
-            "Magical whimsical music with soft bells throughout. "
-            "[Shot 1 - Wide] {people} entering an ancient glowing forest at dusk, fireflies beginning to light up all around them, bioluminescent mushrooms at their feet. "
-            "[Shot 2 - Close-up] Fireflies landing on their outstretched hands, their faces glowing with soft golden light, expressions of pure wonder. "
-            "[Shot 3 - Wide] Dancing slowly among the fireflies, the whole forest glowing around them, magical light particles floating everywhere. "
-            "[Shot 4 - Slow motion] They look up as thousands of glowing fireflies rise around them into the dark sky like living stars. "
-            "Magical bioluminescent palette, dark enchanted forest, pure wonder and magic."
+            "Magical fantasy forest video, no dialogue, enchanted whimsical music. "
+            "[Shot 1 - Wide, 2s] {people} run into a glowing magical forest at dusk, fireflies exploding to life around them as they enter. "
+            "[Shot 2 - Close action, 1.5s] Fireflies landing on outstretched hands — one suddenly illuminates brightly, startling them both. "
+            "[Shot 3 - Wide action, 2s] Running and spinning through the glowing forest, light particles scattering with every step. "
+            "[Shot 4 - Slow motion, 1.5s] Thousands of fireflies rising around them simultaneously in a massive glowing tornado. "
+            "[Shot 5 - Close, 1.5s] Looking at each other's faces lit by firefly glow, pure wonder and joy. "
+            "Mix of fast magical action and wonder moments, bioluminescent palette."
         ),
     },
     "lale": {
         "label": "Lale Bahçesi",
         "emoji": "🌷",
         "prompt": (
-            "Cinematic multishot romantic spring film. No dialogue, only beautiful spring music. "
-            "Light and joyful classical music throughout. "
-            "[Shot 1 - Wide] {people} entering a stunning tulip garden in full bloom, thousands of red and pink tulips stretching to the horizon, Istanbul visible in the distance. "
-            "[Shot 2 - Slow motion] Walking slowly between tall rows of tulips, petals gently swaying, warm spring sunlight filtering through. "
-            "[Shot 3 - Close-up] One handing the other a single perfect red tulip, their fingers touching, warm smiles exchanged. "
-            "[Shot 4 - Wide] Both sitting among the tulips as petals blow in the breeze around them, a perfect spring moment. "
-            "Rich vibrant spring colors, warm golden light, deeply romantic and joyful."
+            "Vibrant romantic spring video, no dialogue, joyful music. "
+            "[Shot 1 - Wide tracking, 2s] {people} run into a stunning tulip garden in full bloom, thousands of red tulips stretching to the horizon, Istanbul visible behind. "
+            "[Shot 2 - Action close, 1.5s] Spinning each other between the tall tulip rows, petals flying everywhere around them. "
+            "[Shot 3 - Slow motion, 1.5s] One dramatically presents a single red tulip, petals blowing in slow motion. "
+            "[Shot 4 - Close playful, 1.5s] Chasing each other through the tulip rows, ducking, laughing, tulips swaying. "
+            "[Shot 5 - Wide, 2s] Collapsing together sitting among the tulips, catching breath, smiling at each other. "
+            "Vibrant spring colors, energetic then tender pacing."
         ),
     },
     "sahil": {
         "label": "Sahilde Gün Batımı",
         "emoji": "🌅",
         "prompt": (
-            "Cinematic multishot emotional beach film. No dialogue, only beautiful ambient music. "
-            "Emotional piano and strings music throughout. "
-            "[Shot 1 - Wide] {people} walking barefoot on a deserted beach at golden hour, waves gently washing over their feet, pink and gold sky stretching endlessly. "
-            "[Shot 2 - Slow motion] Spinning together in the shallow water, laughter silent but visible, water splashing around them, backlit by the setting sun. "
-            "[Shot 3 - Close-up] Sitting together on the sand, watching the sun touch the horizon, one resting their head on the other's shoulder. "
-            "[Shot 4 - Wide] The sun disappears below the horizon, first stars appearing, both silhouetted against the glowing sky. "
-            "Warm golden hour cinematography, emotional and serene, deeply beautiful."
+            "Dynamic beach sunset video, no dialogue, emotional cinematic music. "
+            "[Shot 1 - Wide, 2s] {people} sprint into the ocean at golden hour, clothes on, crashing through shallow waves at full speed. "
+            "[Shot 2 - Slow motion, 1.5s] Wave hits them both simultaneously — wall of water, arms out, screaming with joy. "
+            "[Shot 3 - Action, 1.5s] Splashing each other furiously in waist-deep water, laughing uncontrollably. "
+            "[Shot 4 - Close slow-mo, 1s] Water droplets suspended in golden backlight around their faces. "
+            "[Shot 5 - Wide, 2s] Walking out of the water hand in hand, soaking wet, sun setting perfectly behind them. "
+            "Fast action cuts mixed with slow-motion beauty, golden hour color grade."
         ),
     },
     "japon_kiraz": {
         "label": "Japon Kiraz Bahçesi",
         "emoji": "🌸",
         "prompt": (
-            "Cinematic multishot romantic Japanese spring film. No dialogue, only delicate music. "
-            "Soft koto and strings music throughout. "
-            "[Shot 1 - Wide] {people} walking along a stunning avenue of cherry blossom trees in full bloom, petals raining down gently around them like pink snow. "
-            "[Shot 2 - Slow motion] Cherry blossom petals falling in slow motion around their faces, both looking up in wonder, pink light everywhere. "
-            "[Shot 3 - Close-up] Sitting beneath a massive cherry blossom tree, petals covering their shoulders, looking at each other tenderly. "
-            "[Shot 4 - Wide] Walking away down the petal-covered path into a soft pink haze of blossoms, a perfect farewell frame. "
-            "Soft pink and white tones, delicate and romantic, timelessly beautiful."
+            "Beautiful romantic cherry blossom video, no dialogue, delicate koto music. "
+            "[Shot 1 - Wide tracking, 2s] {people} running down a stunning cherry blossom avenue, petals raining down like pink snow. "
+            "[Shot 2 - Slow motion, 1.5s] Both jump simultaneously, catching petals mid-air, laughing as they land. "
+            "[Shot 3 - Close action, 1.5s] One grabs a branch and shakes it — massive petal shower erupts over them both. "
+            "[Shot 4 - Close romantic, 1.5s] Sitting under the biggest tree, petals covering their shoulders, looking at each other. "
+            "[Shot 5 - Wide, 2s] Walking away down the petal-covered path into a pink blossom haze, hand in hand. "
+            "Playful action mixed with romantic beauty, soft pink tones."
         ),
     },
     "park": {
         "label": "Parkta Gün",
         "emoji": "🌳",
         "prompt": (
-            "Cinematic multishot warm memory film. No dialogue, only cheerful music. "
-            "Light acoustic and strings music throughout. "
-            "[Shot 1 - Wide] {people} arriving at a beautiful park on a perfect sunny day, trees in full leaf, dappled sunlight on the path ahead. "
-            "[Shot 2 - Close-up] Sharing a picnic on a blanket under a tree, laughing over food, golden afternoon light filtering through the leaves. "
-            "[Shot 3 - Wide] Running across an open green field together, one chasing the other playfully, pure joy. "
-            "[Shot 4 - Slow motion] Lying on the grass side by side, looking up at the sky through the tree canopy, completely at peace. "
-            "Warm natural tones, nostalgic home-video feel, deeply heartwarming."
+            "Fun energetic park day video, no dialogue, cheerful acoustic music. "
+            "[Shot 1 - Wide action, 2s] {people} sprint across a sunny park, one chasing the other, laughing and dodging. "
+            "[Shot 2 - Close, 1.5s] Collapsing on a picnic blanket, out of breath, stealing food from each other's hands. "
+            "[Shot 3 - Action, 1.5s] Frisbee thrown — one leaping and catching it dramatically, landing in a roll. "
+            "[Shot 4 - Close, 1.5s] Pushing each other on a swing, one flying high, screaming excitedly. "
+            "[Shot 5 - Wide slow-mo, 2s] Both lying in the grass side by side looking up at trees, completely at peace, laughing about something. "
+            "Energetic action cuts, warm natural tones, feel-good energy."
         ),
     },
 }
