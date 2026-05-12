@@ -1636,9 +1636,15 @@ async def lemonsqueezy_init(request: Request):
         if job.get("payment_status") == "paid":
             raise HTTPException(status_code=400, detail="Zaten odendi")
 
-        api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
-        variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID", "")
-        store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
+        test_mode = os.environ.get("LEMON_TEST_MODE", "false").lower() == "true"
+        if test_mode:
+            api_key = os.environ.get("LEMONSQUEEZY_API_KEY_TEST", "")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_TEST", "1640878")
+            store_id = os.environ.get("LEMONSQUEEZY_STORE_ID_TEST", "370282")
+        else:
+            api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_VEO", "1638929")
+            store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "370282")
 
         async with httpx.AsyncClient() as hc:
             resp = await hc.post(
