@@ -19,22 +19,45 @@
   --serif: Georgia, serif;
 }
 body { background:var(--bg); color:var(--text); font-family:var(--serif); min-height:100vh; }
-.header { display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border); }
-.brand { font-family:var(--mono); font-size:13px; letter-spacing:4px; color:var(--gold); text-decoration:none; }
+.header { 
+  display:flex; justify-content:space-between; align-items:center; 
+  padding:16px 20px; border-bottom:1px solid var(--border); 
+  position:sticky; top:0; background:rgba(8,8,8,0.95); z-index:100;
+  backdrop-filter:blur(8px);
+}
+.back-btn { 
+  font-family:var(--mono); font-size:10px; letter-spacing:2px; 
+  color:var(--text); text-decoration:none; 
+  border-bottom:1px solid var(--text); padding-bottom:2px;
+}
+.back-btn:hover { color:var(--text-dim); }
+.brand { 
+  font-family:var(--mono); font-size:13px; letter-spacing:4px; 
+  color:var(--gold); text-decoration:none; 
+}
 .brand span { color:var(--text); }
-.back-btn { font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--text-dim); text-decoration:none; }
+.header-right { display:flex; align-items:center; gap:14px; }
+.header-link { 
+  font-family:var(--mono); font-size:10px; letter-spacing:2px; 
+  color:var(--text-dim); cursor:pointer; text-decoration:none;
+}
+.header-link.user-name {
+  color:var(--text);
+  border-bottom:1px solid var(--text); padding-bottom:2px;
+}
+.header-link.logout { color:var(--text-dim); }
 .container { max-width:540px; margin:0 auto; padding:32px 24px 80px; }
 .kicker { font-family:var(--mono); font-size:11px; letter-spacing:3px; color:var(--text-dim); }
 h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 .lead { font-size:15px; font-style:italic; color:var(--text-dim); line-height:1.6; margin-bottom:28px; }
 .gold-line { width:40px; height:2px; background:var(--gold); margin:14px 0; }
-.section-title { font-family:var(--mono); font-size:10px; letter-spacing:3px; color:var(--text-dim); margin:28px 0 12px; display:block; }
+.section-title { font-family:var(--mono); font-size:12px; font-weight:bold; letter-spacing:4px; color:var(--text); margin:28px 0 16px; display:block; text-align:center; }
 
 /* Fotoğraf grid */
-.photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .photo-slot { display:flex; flex-direction:column; gap:8px; }
-.slot-role-label { font-family:var(--mono); font-size:10px; letter-spacing:2px; color:var(--text-faint); }
-.optional-badge { color:var(--text-faint); font-size:9px; }
+.slot-role-label { font-family:var(--mono); font-size:13px; font-weight:bold; letter-spacing:3px; color:var(--text); text-align:center; }
+.optional-badge { color:var(--text-faint); font-size:9px; font-weight:normal; letter-spacing:1px; }
 
 .slot-box {
   aspect-ratio:3/4; border:1px solid var(--border-gold); background:var(--surface);
@@ -57,8 +80,8 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 /* İlişki chip */
 .relation-row { display:flex; gap:5px; flex-wrap:wrap; min-height:28px; }
 .rel-chip {
-  padding:4px 10px; border:1px solid var(--border); background:transparent;
-  font-family:var(--mono); font-size:9px; letter-spacing:1px; color:var(--text-dim);
+  padding:6px 12px; border:1px solid var(--border); background:transparent;
+  font-family:var(--mono); font-size:10px; font-weight:bold; letter-spacing:1px; color:var(--text-dim);
   cursor:pointer; transition:all .15s; white-space:nowrap;
 }
 .rel-chip:hover { border-color:var(--border-gold); color:var(--text); }
@@ -106,8 +129,13 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
 <body>
 
 <div class="header">
-  <a class="brand" href="/">HATIR<span>AI</span></a>
   <a class="back-btn" href="/">← GERİ</a>
+  <a class="brand" href="/">HATIR<span>AI</span></a>
+  <div class="header-right" id="headerRight">
+    <a class="header-link" id="headerLogin" href="/" style="display:none">GİRİŞ YAP</a>
+    <span class="header-link user-name" id="headerUser" style="display:none"></span>
+    <span class="header-link logout" id="headerLogout" onclick="doLogout()" style="display:none">ÇIKIŞ</span>
+  </div>
 </div>
 
 <div class="container">
@@ -244,21 +272,7 @@ const STAGES = ['SAHNE HAZIRLANIYOR','KİŞİLER YERLEŞTİRİLİYOR','HAREKET �
 let stageIdx = 0, stageTimer = null;
 let isAdmin = false;
 
-// Admin kontrolü — hatirai_session_token key'inden oku
-async function checkAdmin() {
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token') || localStorage.getItem('hatirai_session_token');
-    if (!token) return;
-    window._authToken = token;
-    const r = await fetch(`${BACKEND}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
-    if (r.ok) {
-      const u = await r.json();
-      isAdmin = u.is_admin === true;
-      if (isAdmin) document.getElementById('adminSection').style.display = 'block';
-    }
-  } catch(e) { console.warn('checkAdmin hata:', e); }
-}
+// isAdmin initHeader'da set ediliyor
 
 function triggerUpload(i) { document.getElementById(`input_${i}`).click(); }
 
@@ -471,8 +485,48 @@ async function shareVideo() {
   alert('Link kopyalandı!');
 }
 
+// Header kullanıcı bilgisi
+async function initHeader() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || localStorage.getItem('hatirai_session_token');
+    if (!token) {
+      document.getElementById('headerLogin').style.display = 'inline';
+      return;
+    }
+    window._authToken = token;
+    const r = await fetch(`${BACKEND}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) {
+      const u = await r.json();
+      const name = (u.name || u.email || '').split(' ')[0].toUpperCase();
+      const userEl = document.getElementById('headerUser');
+      userEl.textContent = name;
+      userEl.style.display = 'inline';
+      document.getElementById('headerLogout').style.display = 'inline';
+      isAdmin = u.is_admin === true;
+      if (isAdmin) document.getElementById('adminSection').style.display = 'block';
+    } else {
+      document.getElementById('headerLogin').style.display = 'inline';
+    }
+  } catch(e) {
+    document.getElementById('headerLogin').style.display = 'inline';
+  }
+}
+
+async function doLogout() {
+  const token = window._authToken || localStorage.getItem('hatirai_session_token');
+  if (token) {
+    try {
+      await fetch(`${BACKEND}/api/auth/logout`, { method:'POST', headers:{ Authorization:`Bearer ${token}` } });
+    } catch(e) {}
+    localStorage.removeItem('hatirai_session_token');
+    localStorage.removeItem('hatirai_user');
+  }
+  window.location.href = '/';
+}
+
 loadConcepts();
-checkAdmin();
+initHeader();
 </script>
 </body>
 </html>
