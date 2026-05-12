@@ -2189,8 +2189,8 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
             arguments={
                 "prompt": full_prompt,
                 "image_urls": image_urls,
-                "resolution": "720p",
-                "duration": "8",
+                "resolution": "480p",
+                "duration": "15",
                 "aspect_ratio": "9:16",
                 "generate_audio": True,
             },
