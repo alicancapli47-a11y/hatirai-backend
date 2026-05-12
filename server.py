@@ -2140,7 +2140,8 @@ SEEDANCE_CONCEPTS = {
 class SeedanceJobModel(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     concept: str
-    status: str = "processing"
+    status: str = "awaiting_payment"
+    payment_status: str = "unpaid"
     video_url: Optional[str] = None
     error: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -2221,7 +2222,7 @@ async def seedance_concepts():
 
 @api_router.post("/seedance/create")
 async def seedance_create(request: Request):
-    """Çoklu fotoğraf + ilişki + konsept ile Seedance anı videosu başlat."""
+    """Çoklu fotoğraf + ilişki + konsept ile Seedance job oluştur — ödeme bekleniyor."""
     if not FAL_KEY:
         raise HTTPException(status_code=500, detail="FAL_KEY eksik")
     try:
@@ -2232,8 +2233,6 @@ async def seedance_create(request: Request):
         if concept not in SEEDANCE_CONCEPTS:
             raise HTTPException(status_code=400, detail=f"Gecersiz konsept: {concept}")
 
-        # Fotoğrafları topla: photo_0, photo_1, photo_2, photo_3
-        # role_0, role_1... ve relation_0, relation_1...
         photos = []
         for i in range(4):
             photo_file = form.get(f"photo_{i}")
@@ -2250,17 +2249,150 @@ async def seedance_create(request: Request):
         if not photos:
             raise HTTPException(status_code=400, detail="En az 1 fotograf gerekli")
 
-        job = SeedanceJobModel(concept=concept)
-        await db.seedance_jobs.insert_one(job.model_dump())
-        asyncio.create_task(_run_seedance(job.id, photos, concept))
-        logger.info(f"[seedance] job={job.id} concept={concept} {len(photos)} fotograf")
+        job = SeedanceJobModel(concept=concept, status="awaiting_payment", payment_status="unpaid")
+        job_doc = job.model_dump()
+        job_doc["photos"] = photos  # fotoğrafları DB'de sakla
+        await db.seedance_jobs.insert_one(job_doc)
+        logger.info(f"[seedance] job={job.id} concept={concept} {len(photos)} fotograf — odeme bekleniyor")
 
-        return {"job_id": job.id, "status": "processing"}
+        return {"job_id": job.id, "status": "awaiting_payment"}
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("[seedance/create] Hata")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/seedance/payment/init")
+async def seedance_payment_init(request: Request):
+    """Seedance job için Lemonsqueezy ödeme başlat."""
+    import httpx
+    try:
+        body = await request.json()
+        job_id = body.get("job_id")
+        if not job_id:
+            raise HTTPException(status_code=400, detail="job_id gerekli")
+
+        job = await db.seedance_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            raise HTTPException(status_code=404, detail="Job bulunamadi")
+        if job.get("payment_status") == "paid":
+            raise HTTPException(status_code=400, detail="Zaten odendi")
+
+        api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+        variant_id = "1643185"
+        store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
+
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
+                "https://api.lemonsqueezy.com/v1/checkouts",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/vnd.api+json",
+                    "Accept": "application/vnd.api+json",
+                },
+                json={
+                    "data": {
+                        "type": "checkouts",
+                        "attributes": {
+                            "checkout_data": {
+                                "custom": {"seedance_job_id": job_id}
+                            },
+                            "product_options": {
+                                "redirect_url": f"{PUBLIC_BACKEND_URL}/api/ani?job={job_id}",
+                            }
+                        },
+                        "relationships": {
+                            "store": {"data": {"type": "stores", "id": store_id}},
+                            "variant": {"data": {"type": "variants", "id": variant_id}}
+                        }
+                    }
+                }
+            )
+            resp.raise_for_status()
+            checkout = resp.json()
+            checkout_url = checkout["data"]["attributes"]["url"]
+            logger.info(f"[seedance-payment] checkout_url={checkout_url} job_id={job_id}")
+            return {"checkout_url": checkout_url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[seedance-payment] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/seedance/payment/webhook")
+async def seedance_payment_webhook(request: Request):
+    """Lemonsqueezy webhook — ödeme onaylanınca Seedance pipeline başlat."""
+    import hmac, hashlib
+    try:
+        body = await request.body()
+        secret = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
+        signature = request.headers.get("X-Signature", "")
+        if secret:
+            expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(expected, signature):
+                raise HTTPException(status_code=401, detail="Invalid signature")
+
+        data = await request.json()
+        event = data.get("meta", {}).get("event_name", "")
+        if event != "order_created":
+            return {"status": "ignored"}
+
+        attrs = data.get("data", {}).get("attributes", {})
+        if attrs.get("status") != "paid":
+            return {"status": "ignored"}
+
+        custom = data.get("meta", {}).get("custom_data", {})
+        job_id = custom.get("seedance_job_id", "")
+        if not job_id:
+            return {"status": "error", "detail": "seedance_job_id missing"}
+
+        job = await db.seedance_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            return {"status": "error", "detail": "job not found"}
+        if job.get("payment_status") == "paid":
+            return {"status": "already_paid"}
+
+        await db.seedance_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"payment_status": "paid", "status": "processing", "paid_at": datetime.now(timezone.utc)}}
+        )
+        photos = job.get("photos", [])
+        asyncio.create_task(_run_seedance(job_id, photos, job["concept"]))
+        logger.info(f"[seedance-webhook] Odeme onaylandi, pipeline basladi: {job_id}")
+        return {"status": "ok"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[seedance-webhook] Hata: {e}")
+        return {"status": "error", "detail": str(e)}
+
+
+@api_router.post("/seedance/admin-free/{job_id}")
+async def seedance_admin_free(job_id: str, user: dict = Depends(require_user)):
+    """Sadece administrator: ödeme olmadan Seedance pipeline başlat."""
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Sadece administrator erisebilir")
+
+    job = await db.seedance_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job bulunamadi")
+    if job.get("status") == "processing":
+        return {"status": "processing", "message": "Zaten uretiliyor"}
+    if job.get("status") == "ready":
+        return {"status": "ready", "video_url": job.get("video_url")}
+
+    await db.seedance_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"payment_status": "paid", "status": "processing", "paid_at": datetime.now(timezone.utc)}}
+    )
+    photos = job.get("photos", [])
+    asyncio.create_task(_run_seedance(job_id, photos, job["concept"]))
+    logger.info(f"[seedance-admin-free] job={job_id} admin={user['email']} pipeline basladi")
+    return {"status": "processing", "message": "Pipeline basladi"}
 
 
 @api_router.get("/seedance/job/{job_id}")
@@ -2272,7 +2404,8 @@ async def seedance_job_status(job_id: str):
     return {
         "id": doc["id"],
         "concept": doc.get("concept"),
-        "status": doc.get("status", "processing"),
+        "status": doc.get("status", "awaiting_payment"),
+        "payment_status": doc.get("payment_status", "unpaid"),
         "video_url": doc.get("video_url"),
         "error": doc.get("error"),
     }
