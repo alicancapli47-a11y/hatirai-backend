@@ -132,13 +132,12 @@ h1 { font-size:36px; letter-spacing:-1px; line-height:1.1; margin:8px 0 4px; }
   <a class="back-btn" href="/">← GERİ</a>
   <a class="brand" href="/">HATIR<span>AI</span></a>
   <div class="header-right" id="headerRight">
-    <a class="header-link" id="headerLogin" href="/" style="display:none">GİRİŞ YAP</a>
     <span class="header-link user-name" id="headerUser" style="display:none"></span>
     <span class="header-link logout" id="headerLogout" onclick="doLogout()" style="display:none">ÇIKIŞ</span>
   </div>
 </div>
 
-<div class="container">
+<div class="container" id="mainContent" style="display:none">
   <p class="kicker">— anı videosu —</p>
   <h1>Anıyı<br>Sahneye Taşı</h1>
   <div class="gold-line"></div>
@@ -491,7 +490,9 @@ async function initHeader() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token') || localStorage.getItem('hatirai_session_token');
     if (!token) {
-      document.getElementById('headerLogin').style.display = 'inline';
+      // Login sayfasına yönlendir, geri dönüş URL'si ile
+      const returnUrl = encodeURIComponent(window.location.href);
+      window.location.href = `https://hatirai.com/login?return=${returnUrl}`;
       return;
     }
     window._authToken = token;
@@ -505,11 +506,16 @@ async function initHeader() {
       document.getElementById('headerLogout').style.display = 'inline';
       isAdmin = u.is_admin === true;
       if (isAdmin) document.getElementById('adminSection').style.display = 'block';
+      document.getElementById('mainContent').style.display = 'block';
     } else {
-      document.getElementById('headerLogin').style.display = 'inline';
+      // Token geçersiz
+      localStorage.removeItem('hatirai_session_token');
+      const returnUrl = encodeURIComponent(window.location.href);
+      window.location.href = `https://hatirai.com/login?return=${returnUrl}`;
     }
   } catch(e) {
-    document.getElementById('headerLogin').style.display = 'inline';
+    const returnUrl = encodeURIComponent(window.location.href);
+    window.location.href = `https://hatirai.com/login?return=${returnUrl}`;
   }
 }
 
