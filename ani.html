@@ -318,7 +318,12 @@ async function createJob() {
     fd.append(`relation_${si}`, REL_EN[relations[i]] || 'person');
     si++;
   }
-  const r = await fetch(`${BACKEND}/api/seedance/create`, { method:'POST', body:fd });
+  const token = window._authToken || localStorage.getItem('hatirai_session_token');
+  const r = await fetch(`${BACKEND}/api/seedance/create`, {
+    method: 'POST',
+    body: fd,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!r.ok) throw new Error(await r.text());
   return await r.json();
 }
@@ -330,8 +335,17 @@ async function generate() {
     const data = await createJob();
     currentJobId = data.job_id;
 
-    // Lemonsqueezy ödeme sayfasına yönlendir
-    const token = localStorage.getItem('session_token');
+    // State'i localStorage'a kaydet — ödeme sonrası geri yüklenecek
+    const stateToSave = {
+      jobId: currentJobId,
+      concept: selectedConcept,
+      photo0: photos[0] ? photos[0].b64 : null,
+      photo1: photos[1] ? photos[1].b64 : null,
+      relation1: relations[1],
+    };
+    localStorage.setItem('hatirai_ani_state', JSON.stringify(stateToSave));
+
+    const token = window._authToken || localStorage.getItem('hatirai_session_token');
     const pr = await fetch(`${BACKEND}/api/seedance/payment/init`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -340,10 +354,6 @@ async function generate() {
     if (!pr.ok) throw new Error(await pr.text());
     const pdata = await pr.json();
     window.location.href = pdata.checkout_url;
-
-    // Ödeme sonrası polling başlat
-    showProcessing();
-    startPolling();
   } catch(e) {
     document.getElementById('generateBtn').disabled = false;
     alert('Hata: ' + (e.message || 'Bilinmeyen hata'));
@@ -494,14 +504,67 @@ initHeader();
 (function checkReturnFromPayment() {
   const urlParams = new URLSearchParams(window.location.search);
   const jobId = urlParams.get('job');
-  if (jobId) {
-    currentJobId = jobId;
-    showProcessing();
-    startPolling();
-    // URL'den job parametresini temizle
-    const newUrl = window.location.pathname + (urlParams.get('token') ? `?token=${urlParams.get('token')}` : '');
-    window.history.replaceState({}, '', newUrl);
-  }
+  if (!jobId) return;
+
+  currentJobId = jobId;
+
+  // Kaydedilen state'i geri yükle
+  try {
+    const saved = localStorage.getItem('hatirai_ani_state');
+    if (saved) {
+      const state = JSON.parse(saved);
+      if (state.jobId === jobId) {
+        // Konsepti geri yükle
+        if (state.concept) {
+          selectedConcept = state.concept;
+          // Konsept grid yüklendikten sonra seçili göster
+          setTimeout(() => {
+            const el = document.querySelector(`.concept[onclick*="${state.concept}"]`);
+            if (el) { document.querySelectorAll('.concept').forEach(c => c.classList.remove('selected')); el.classList.add('selected'); }
+          }, 500);
+        }
+        // Fotoğrafları geri yükle
+        if (state.photo0) {
+          const img0 = `data:image/jpeg;base64,${state.photo0}`;
+          const box0 = document.getElementById('box_0');
+          let img = box0.querySelector('img');
+          if (!img) { img = document.createElement('img'); box0.insertBefore(img, box0.firstChild); }
+          img.src = img0;
+          box0.classList.add('has-photo');
+          box0.querySelector('.slot-icon').style.display = 'none';
+          box0.querySelector('.slot-label').style.display = 'none';
+        }
+        if (state.photo1) {
+          const img1 = `data:image/jpeg;base64,${state.photo1}`;
+          const box1 = document.getElementById('box_1');
+          let img = box1.querySelector('img');
+          if (!img) { img = document.createElement('img'); box1.insertBefore(img, box1.firstChild); }
+          img.src = img1;
+          box1.classList.add('has-photo');
+          box1.querySelector('.slot-icon').style.display = 'none';
+          box1.querySelector('.slot-label').style.display = 'none';
+          // İlişki chip'ini seç
+          if (state.relation1) {
+            setTimeout(() => {
+              const relKey = Object.keys(REL_EN).find(k => REL_EN[k] === state.relation1);
+              if (relKey) {
+                const chip = document.querySelector(`#rel_1 .rel-chip[onclick*="${relKey}"]`);
+                if (chip) { document.querySelectorAll('#rel_1 .rel-chip').forEach(c => c.classList.remove('active')); chip.classList.add('active'); }
+              }
+            }, 300);
+          }
+        }
+        localStorage.removeItem('hatirai_ani_state');
+      }
+    }
+  } catch(e) {}
+
+  showProcessing();
+  startPolling();
+
+  // URL'den job parametresini temizle
+  const newUrl = window.location.pathname + (urlParams.get('token') ? `?token=${urlParams.get('token')}` : '');
+  window.history.replaceState({}, '', newUrl);
 })();
 </script>
 </body>
