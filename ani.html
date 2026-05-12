@@ -339,7 +339,7 @@ async function generate() {
     });
     if (!pr.ok) throw new Error(await pr.text());
     const pdata = await pr.json();
-    window.open(pdata.checkout_url, '_blank');
+    window.location.href = pdata.checkout_url;
 
     // Ödeme sonrası polling başlat
     showProcessing();
