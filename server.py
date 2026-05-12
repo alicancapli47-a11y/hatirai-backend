@@ -2429,7 +2429,7 @@ async def seedance_payment_init(request: Request):
             store_id = os.environ.get("LEMONSQUEEZY_STORE_ID_TEST", "370282")
         else:
             api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
-            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID", "1643185")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_SEEDANCE", "1643185")
             store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "370282")
 
         async with httpx.AsyncClient() as hc:
