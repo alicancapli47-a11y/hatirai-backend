@@ -241,20 +241,20 @@ const STAGES = ['SAHNE HAZIRLANIYOR','KİŞİLER YERLEŞTİRİLİYOR','HAREKET �
 let stageIdx = 0, stageTimer = null;
 let isAdmin = false;
 
-// Admin kontrolü
+// Admin kontrolü — hatirai_session_token key'inden oku
 async function checkAdmin() {
   try {
-    const token = localStorage.getItem('session_token');
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || localStorage.getItem('hatirai_session_token');
     if (!token) return;
+    window._authToken = token;
     const r = await fetch(`${BACKEND}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
     if (r.ok) {
       const u = await r.json();
       isAdmin = u.is_admin === true;
-      if (isAdmin) {
-        document.getElementById('adminSection').style.display = 'block';
-      }
+      if (isAdmin) document.getElementById('adminSection').style.display = 'block';
     }
-  } catch(e) {}
+  } catch(e) { console.warn('checkAdmin hata:', e); }
 }
 
 function triggerUpload(i) { document.getElementById(`input_${i}`).click(); }
@@ -389,7 +389,7 @@ async function adminFree() {
     }
   }
   try {
-    const token = localStorage.getItem('session_token');
+    const token = window._authToken || localStorage.getItem('session_token');
     const r = await fetch(`${BACKEND}/api/seedance/admin-free/${currentJobId}`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {}
