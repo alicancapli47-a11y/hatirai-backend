@@ -2147,6 +2147,108 @@ class SeedanceJobModel(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+async def _add_seedance_watermark(job_id: str, video_url: str) -> Optional[str]:
+    """
+    9:16 videoya HATIR ◆ AI watermark ekle — ffmpeg, kredi harcamaz.
+    Ust orta: HATIR (beyaz) ◆ (gold) AI (gold)
+    Alt orta: hatirai.com (soluk)
+    Basarisiz olursa None doner, orijinal video kullanilir.
+    """
+    import tempfile as _tf
+    workdir = _tf.mkdtemp(prefix=f"wm-{job_id}-")
+    try:
+        video_local = os.path.join(workdir, "input.mp4")
+        await asyncio.to_thread(_http_download, video_url, video_local)
+        output_local = os.path.join(workdir, "watermarked.mp4")
+
+        font_candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ]
+        font_path = next((f for f in font_candidates if os.path.exists(f)), None)
+        if not font_path:
+            logger.warning(f"[watermark] Font bulunamadi, atlanıyor")
+            return None
+
+        # Üst ortaya: HATIR beyaz + boşluk + AI gold
+        # ◆ sembolü fontlarda olmayabilir, basit | veya · kullanalım
+        # İki ayrı drawtext katmanı: önce HATIR sonra AI, ortaya hizala
+        # Basit yaklaşım: tek metin "HATIR · AI" beyaz + gold efekti yok ama güvenilir
+
+        top_y = "h/20"
+        bottom_y = "h-h/14"
+        font_size_main = "h/14"
+        font_size_small = "h/48"
+
+        # 3 katman: HATIR (beyaz) | · (gold) | AI (gold) + alt site
+        # x koordinatları: toplam genişliği hesaplayamayız kolayca,
+        # bu yüzden "HATIR  AI" tek metin beyaz yazıp üstüne AI kısmını gold yazıyoruz
+        # Güvenilir yöntem: her şeyi ayrı drawtext, x offset ile hizala
+
+        # HATIRAI birlesik yaz — HATIR beyaz, AI gold
+        # Yontem: once HATIRAI tamamen beyaz yaz, sonra AI kismini gold ile ustune yaz
+        # AI metni, HATIRAI'nin son 2 karakteri — x offseti: (w+tw_full)/2 - tw_ai
+        # tw ffmpeg'de o anki metnin genisligini verir
+        # HATIR kismi icin x: (w-tw_full)/2 — tam ortada baslangic
+        # AI kismi x: (w-tw_full)/2 + tw_hatir — HATIR'dan sonra baslar
+
+        vf = ",".join([
+            # Gölge — okunabilirlik
+            f"drawtext=fontfile='{font_path}':text='HATIRAI':"
+            f"fontcolor=black@0.6:fontsize={font_size_main}:"
+            f"x=(w-tw)/2+2:y={top_y}+2",
+
+            # HATIRAI tamamen beyaz (altta kalacak)
+            f"drawtext=fontfile='{font_path}':text='HATIRAI':"
+            f"fontcolor=0xF4F1EA@0.93:fontsize={font_size_main}:"
+            f"x=(w-tw)/2:y={top_y}",
+
+            # AI — gold, HATIR'ın hemen sağına konumla
+            # x = (w/2) + (tw_HATIRAI/2) - (tw_AI) — sağdan iki karakter
+            # ffmpeg'de dinamik tw kullanamayız, sabit ratio kullanıyoruz:
+            # HATIRAI = 7 karakter, AI = 2 karakter → AI başlangıcı = %71 oranında
+            f"drawtext=fontfile='{font_path}':text='AI':"
+            f"fontcolor=0xC9A961@1.0:fontsize={font_size_main}:"
+            f"x=(w-tw)/2+(tw)*5/7:y={top_y}",
+
+            # Alt — hatirai.com soluk
+            f"drawtext=fontfile='{font_path}':text='hatirai.com':"
+            f"fontcolor=0xF4F1EA@0.28:fontsize={font_size_small}:"
+            f"x=(w-tw)/2:y={bottom_y}",
+        ])
+
+        cmd = [
+            "ffmpeg", "-y", "-i", video_local,
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-c:a", "copy",
+            output_local,
+        ]
+        result = await asyncio.to_thread(
+            lambda: subprocess.run(cmd, capture_output=True, timeout=120)
+        )
+
+        if result.returncode != 0:
+            logger.warning(f"[watermark] ffmpeg hatasi: {result.stderr.decode()[:300]}")
+            return None
+
+        # Watermarklı videoyu fal.ai'ye yükle
+        wm_url = await fal_client.upload_file_async(output_local)
+        logger.info(f"[watermark {job_id}] Watermark eklendi: {wm_url}")
+        return wm_url
+
+    except Exception as e:
+        logger.warning(f"[watermark {job_id}] Hata, orijinal kullanilacak: {e}")
+        return None
+    finally:
+        try:
+            shutil.rmtree(workdir, ignore_errors=True)
+        except Exception:
+            pass
+
+
 async def _run_seedance(job_id: str, photos: list, concept: str):
     """
     Seedance 2.0 reference-to-video ile anı videosu üret.
@@ -2198,11 +2300,15 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
         )
         result = await handle.get()
         video_url = result["video"]["url"]
-        logger.info(f"[seedance {job_id}] Video hazir: {video_url}")
+        logger.info(f"[seedance {job_id}] Ham video hazir: {video_url}")
+
+        # Watermark ekle
+        watermarked_url = await _add_seedance_watermark(job_id, video_url)
+        final_video_url = watermarked_url or video_url
 
         await db.seedance_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "ready", "video_url": video_url}},
+            {"$set": {"status": "ready", "video_url": final_video_url}},
         )
     except Exception as e:
         logger.exception(f"[seedance {job_id}] Hata")
@@ -2281,7 +2387,7 @@ async def seedance_payment_init(request: Request):
 
         api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
         variant_id = "1643185"
-        store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
+        store_id = "1047868"
 
         async with httpx.AsyncClient() as hc:
             resp = await hc.post(
