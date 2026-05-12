@@ -1568,8 +1568,56 @@ async def user_history(user: dict = Depends(require_user)):
             "media_url": i.get("media_url"),
             "created_at": i.get("created_at"),
             "noir_b64": thumb_b64,
+            "retry_count": int(i.get("retry_count") or 0),
+            "type": "veo",
         })
     return result
+
+
+@api_router.get("/user/seedance-history")
+async def user_seedance_history(user: dict = Depends(require_user)):
+    """Kullanicinin Seedance ani videolarini getir."""
+    cursor = db.seedance_jobs.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).limit(50)
+    items = await cursor.to_list(length=50)
+    result = []
+    for i in items:
+        result.append({
+            "job_id": i.get("id"),
+            "concept": i.get("concept"),
+            "status": i.get("status"),
+            "payment_status": i.get("payment_status", "unpaid"),
+            "video_url": i.get("video_url"),
+            "error": i.get("error"),
+            "created_at": i.get("created_at"),
+            "retry_count": int(i.get("retry_count") or 0),
+            "type": "seedance",
+        })
+    return result
+
+
+@api_router.post("/seedance/retry/{job_id}")
+async def seedance_retry(job_id: str, user: dict = Depends(require_user)):
+    """Basarisiz Seedance job'ini yeniden baslatir — maksimum 2 deneme."""
+    job = await db.seedance_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Is bulunamadi")
+    if job.get("payment_status") != "paid":
+        raise HTTPException(status_code=403, detail="Odeme yapilmamis")
+    if job.get("status") == "processing":
+        return {"message": "Zaten uretiliyor"}
+    if int(job.get("retry_count") or 0) >= 2:
+        raise HTTPException(status_code=403, detail="Maksimum deneme hakkina ulasildi. Odemeniz iade edilecektir.")
+    await db.seedance_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"status": "processing", "error": None, "video_url": None},
+         "$inc": {"retry_count": 1}}
+    )
+    photos = job.get("photos", [])
+    asyncio.create_task(_run_seedance(job_id, photos, job["concept"]))
+    logger.info(f"[seedance-retry] job={job_id} retry={job.get('retry_count', 0) + 1}")
+    return {"message": "Yeniden baslatildi"}
 
 
 @api_router.post("/payment/lemonsqueezy-init")
@@ -2315,7 +2363,7 @@ async def seedance_concepts():
 
 
 @api_router.post("/seedance/create")
-async def seedance_create(request: Request):
+async def seedance_create(request: Request, user: Optional[dict] = Depends(current_user)):
     """Çoklu fotoğraf + ilişki + konsept ile Seedance job oluştur — ödeme bekleniyor."""
     if not FAL_KEY:
         raise HTTPException(status_code=500, detail="FAL_KEY eksik")
@@ -2345,7 +2393,8 @@ async def seedance_create(request: Request):
 
         job = SeedanceJobModel(concept=concept, status="awaiting_payment", payment_status="unpaid")
         job_doc = job.model_dump()
-        job_doc["photos"] = photos  # fotoğrafları DB'de sakla
+        job_doc["photos"] = photos
+        job_doc["user_id"] = user["user_id"] if user else None
         await db.seedance_jobs.insert_one(job_doc)
         logger.info(f"[seedance] job={job.id} concept={concept} {len(photos)} fotograf — odeme bekleniyor")
 
