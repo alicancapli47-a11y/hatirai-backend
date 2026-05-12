@@ -2723,6 +2723,11 @@ async def sitemap():
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
+  <url>
+    <loc>https://hatirai-backend-production.up.railway.app/api/ani</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>"""
     return Response(content=content, media_type="application/xml")
 
@@ -2736,6 +2741,13 @@ Sitemap: https://hatirai.com/sitemap.xml"""
 @app.get("/google5207070550b5c3d1.html", include_in_schema=False)
 async def google_verify():
     return PlainTextResponse("google-site-verification: google5207070550b5c3d1.html")
+
+@app.get("/googlesiteverification", include_in_schema=False)
+async def google_verify_meta():
+    html = """<!DOCTYPE html><html><head>
+<meta name="google-site-verification" content="uCNBGtwP68mV4KJmMF_PvzBSGPVV7WZwHaOuyyyXP8M" />
+</head><body></body></html>"""
+    return HTMLResponse(content=html)
 
 app.add_middleware(
     CORSMiddleware,
