@@ -536,7 +536,7 @@ def _fallback_second_sentence(name: str, ai_sentence: str) -> str:
     import random
     SECONDS = [
         f"Seni her gun dusunuyorum {name}, kalbimde hep beraber yasiyoruz.",
-        f"Umarim iyi ve saglikli oluyorsundur {name}, seni cok ama cok ozledim.",
+        f"Umarim iyi oluyorsundur {name}, seni cok ama cok ozledim.",
         f"Nerede olursan ol {name} biliyorum ki bir gun yeniden kavusacagiz.",
     ]
     return random.choice(SECONDS)
