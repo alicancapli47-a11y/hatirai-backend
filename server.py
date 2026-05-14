@@ -483,8 +483,8 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
 
 async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str) -> str:
     """
-    Fotodaki kisi (relationship), kullaniciya (name) hitap ederek konusuyor.
-    Claude aniya sadik, isim gecen dogal Turkce konusma metni uretir.
+    2 ayrı cümle üret — her biri 15-18 kelime, sakin ve duygusal.
+    Klip 1 → 1. cümle, Klip 2 → 2. cümle.
     """
     try:
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -492,32 +492,49 @@ async def _build_full_script(name: str, relationship: str, last_memory: Optional
         response = await asyncio.to_thread(
             ac.messages.create,
             model="claude-sonnet-4-5-20250929",
-            max_tokens=300,
+            max_tokens=200,
             system=(
                 "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-                "Fotodaki kisi (ornegin dede), sevdigi birine kisa bir video mesaji birakiyor. "
-                "Mesaj fotodaki kisinin agzindan, karsi taraftaki kisinin adini kullanarak yazilmali. "
-                "Karsi tarafin adini en az 2 kez kullan. "
-                "Verilen aniya mutlaka atifta bulun. Kliseden kacin. "
-                "Toplam 50-70 kelime. Tek akis, paragraf yok. "
-                "Sadece konusma metnini yaz, hicbir aciklama ekleme."
+                "Fotodaki kisi (ornegin dede), 8er saniyelik 2 video klip icin sakin ve yurekten 2 cümle soyleyecek. "
+                "Her cumle tam olarak 15-18 kelime olmali — ne fazla ne eksik. "
+                "Cumleler sakin, duygusal, panik yok, aceleci degil. Sanki yasli biri usulca konusuyor. "
+                "Karsi tarafin adini her cumlede kullan. "
+                "Verilen aniya atifta bulun, kliseden kacin. "
+                "SADECE iki cumleyi yaz, aralarinda nokta olsun. Baska hicbir sey yazma. "
+                "Ornek format: 'Cumle bir burada. Cumle iki burada.'"
             ),
             messages=[{
                 "role": "user",
                 "content": (
-                    f"Konusan kisinin kim oldugu: {relationship} (fotodaki kisi)\n"
-                    f"Konusulan kisinin adi: {name}\n"
-                    f"Paylasilan ani: {memory_hint}\n"
-                    f"Ilk cumle su olmali: {ai_sentence}\n\n"
-                    f"{relationship} olarak, {name}'e hitap eden dogal bir video mesaji yaz."
+                    f"Konusan: {relationship}\n"
+                    f"Hitap edilen isim: {name}\n"
+                    f"Ani: {memory_hint}\n"
+                    f"1. cumle su olmali: {ai_sentence}\n\n"
+                    f"Simdi 2. cumleyi de yaz. {name} adini kullan, aniya atif yap, 15-18 kelime."
                 )
             }]
         )
         script = (response.content[0].text or "").strip()
-        return script if len(script) > 20 else _fallback_script(name, ai_sentence)
+        # Nokta ile 2 cumleye bol, her ikisi de doluysa kullan
+        parts = [s.strip() for s in script.split(".") if s.strip()]
+        if len(parts) >= 2:
+            return f"{parts[0]}. {parts[1]}."
+        elif len(parts) == 1:
+            return f"{parts[0]}. {_fallback_second_sentence(name, ai_sentence)}"
+        return _fallback_script(name, ai_sentence)
     except Exception as e:
         logger.warning(f"[full-script] Claude fallback ({e})")
         return _fallback_script(name, ai_sentence)
+
+
+def _fallback_second_sentence(name: str, ai_sentence: str) -> str:
+    import random
+    SECONDS = [
+        f"Seni her gun dusunuyorum {name}, kalbimde hep beraber yasiyoruz.",
+        f"Umarim iyi ve saglikli oluyorsundur {name}, seni cok ama cok ozledim.",
+        f"Nerede olursan ol {name} biliyorum ki bir gun yeniden kavusacagiz.",
+    ]
+    return random.choice(SECONDS)
 
 
 def _fallback_script(name: str, ai_sentence: str) -> str:
@@ -844,8 +861,9 @@ async def _run_veo_pipeline(job_id: str):
                 + "Preserve the exact age, face, identity, hair, skin and clothing of the person "
                 "in the reference image. Do not alter their appearance in any way. "
                 + expression
-                + f"The person speaks the following lines out loud in Turkish, directly addressing {name_for_prompt}, "
-                f"with deep emotion as a {relationship} would: "
+                + f"The person speaks the following lines SLOWLY, CALMLY and EMOTIONALLY in Turkish, "
+                f"like an elderly person speaking from the heart — not rushed, not panicked, unhurried and sincere. "
+                f"Directly addressing {name_for_prompt} as a {relationship} would: "
                 f'"{chunk_text}" '
                 + ("Their expression softens with quiet emotional resolve as they finish. " if is_last else "")
                 + movement
