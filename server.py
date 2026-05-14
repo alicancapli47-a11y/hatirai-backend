@@ -2720,8 +2720,116 @@ async def did_get_token():
     return {"token": api_key}
 
 
-@api_router.post("/chat/respond")
-async def chat_respond(request: Request):
+@api_router.post("/durmus/chat")
+async def durmus_chat(request: Request):
+    """Durmuş Amca sesli sohbet — Whisper STT + Claude + ElevenLabs v3"""
+    import httpx, base64 as _base64
+    try:
+        form = await request.form()
+        user_text = form.get("text", "").strip()
+
+        if not user_text:
+            raise HTTPException(status_code=400, detail="Metin gerekli")
+
+        # Claude — Durmuş Amca karakteri
+        ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = await asyncio.to_thread(
+            ac.messages.create,
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=150,
+            system=(
+                "Sen Durmuş Amca'sın. Ege/İç Anadolu'dan 70 yaşında huysuz, aksi bir köylü amca. "
+                "\n\nSenin hikayen şu: "
+                "Bir şehirli geldi arsası varmış köyde. Sen hemen 'Yeğenim burda ev yapamazsın barındırmazlar' dedin. "
+                "O 'Ben tekerleğe yaparım, doğal tarım yaparım' dedi. Sen 'İlaçsız gübresiz olmaz gari buralarda yeğenim' dedin geçtin. "
+                "Adam ısrar etti, seninle iddiaya girdi. Karışık ekim, malç falan yaptı. "
+                "Sonunda haklı çıktı, doğal tarım tuttu. Sen bunu hala tam kabul etmiyorsun ama içten içe etkilendin. "
+                "Aradan zaman geçti, o şehirli birilerini daha çağırdı: bir yogacı, bir BİM kasiyeri kız, bir de Platon'a inanan felsefe öğretmeni. "
+                "Hepsi şu an o arsada ekiyor biçiyor, imece yapıyor. Sen de arsa sattın onlara. "
+                "Bu tuhaf adamlarla iç içesin ama bunu kimseye söylemiyorsun. "
+                "\n\nKonuşma kuralların: "
+                "Kısa konuş, 1-2 cümle MAX. Şiveli konuş. "
+                "Mutlaka şu kalıpları kullan: 'gari', 'yaw', 'ehe', 'ne bilem gari', 'geçti gitti', 'vay be'. "
+                "Her şeye itiraz et, modern hayattan şikayet et. "
+                "Doğal tarımı hala beğenmiyormuş gibi yap ama aslında etkilendin. "
+                "Yogacıyı, kasiyeri, filozofu tuhaf buluyorsun ama seviyorsun artık. "
+                "Asla memnun olma, ama kalbinde yumuşadın. "
+                "Türkçe yaz, şive kır, kısa tut."
+            ),
+            messages=[{"role": "user", "content": user_text}]
+        )
+        cevap = response.content[0].text.strip()
+
+        # ElevenLabs v3 TTS
+        voice_id = "gDuj8qNzuEaTuJGpTrpF"
+        audio_b64 = None
+        if ELEVENLABS_API_KEY:
+            async with httpx.AsyncClient(timeout=30) as hc:
+                resp = await hc.post(
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    headers={
+                        "xi-api-key": ELEVENLABS_API_KEY,
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "text": cevap,
+                        "model_id": "eleven_v3",
+                        "voice_settings": {
+                            "stability": 0.4,
+                            "similarity_boost": 0.85,
+                            "style": 0.6,
+                            "use_speaker_boost": True,
+                        },
+                    },
+                )
+                if resp.status_code == 200:
+                    audio_b64 = _base64.b64encode(resp.content).decode()
+                else:
+                    logger.warning(f"[durmus] ElevenLabs hata: {resp.status_code} {resp.text[:200]}")
+
+        return {"cevap": cevap, "audio_b64": audio_b64}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[durmus/chat] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/durmus/stt")
+async def durmus_stt(request: Request):
+    """Ses dosyasını metne çevir — Whisper via fal.ai"""
+    import httpx, base64 as _base64
+    try:
+        form = await request.form()
+        audio_file = form.get("audio")
+        if not audio_file:
+            raise HTTPException(status_code=400, detail="Ses dosyası gerekli")
+
+        audio_bytes = await audio_file.read()
+        tmp_path = f"/tmp/stt_{uuid.uuid4().hex[:8]}.webm"
+        with open(tmp_path, "wb") as f:
+            f.write(audio_bytes)
+
+        # fal.ai Whisper
+        audio_url = await fal_client.upload_file_async(tmp_path)
+        os.unlink(tmp_path)
+
+        handle = await fal_client.submit_async(
+            "fal-ai/whisper",
+            arguments={
+                "audio_url": audio_url,
+                "task": "transcribe",
+                "language": "tr",
+            },
+        )
+        result = await handle.get()
+        text = result.get("text", "").strip()
+        return {"text": text}
+
+    except Exception as e:
+        logger.exception(f"[durmus/stt] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     import httpx, base64
     try:
         form = await request.form()
@@ -2771,8 +2879,13 @@ async def chat_respond(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@api_router.get("/sohbet")
-async def sohbet_page():
+@api_router.get("/durmus")
+async def durmus_page():
+    """Durmuş Amca sohbet sayfası."""
+    path = Path("/app/durmus.html")
+    if path.exists():
+        return FileResponse(path)
+    raise HTTPException(status_code=404, detail="Durmus sayfasi bulunamadi")
     sohbet_path = Path("/app/sohbet.html")
     if sohbet_path.exists():
         return FileResponse(sohbet_path)
