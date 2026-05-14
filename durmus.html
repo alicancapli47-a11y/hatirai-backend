@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Durmuş Amca ile Sohbet — HatırAI</title>
+<style>
+  :root {
+    --bg: #080808;
+    --text: #E8E0D0;
+    --text-dim: #9C9A93;
+    --gold: #C9A961;
+    --border: #1E1C18;
+    --mono: 'Courier New', monospace;
+    --serif: Georgia, serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Header */
+  .header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .back-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px solid var(--text);
+    padding-bottom: 2px;
+    cursor: pointer;
+  }
+  .brand {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-decoration: none;
+  }
+  .brand span { color: var(--text); }
+
+  /* Ana içerik */
+  .container {
+    max-width: 480px;
+    width: 100%;
+    padding: 32px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  /* Fotoğraf */
+  .avatar-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 40px rgba(201,169,97,0.15);
+  }
+  .avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+  }
+  .speaking-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 3px solid var(--gold);
+    opacity: 0;
+    transition: opacity 0.3s;
+    animation: none;
+  }
+  .speaking-ring.active {
+    opacity: 1;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 0.3; }
+  }
+
+  /* İsim */
+  .name {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-align: center;
+  }
+  .subtitle {
+    font-family: var(--serif);
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  /* Sohbet balonu */
+  .bubble-wrap {
+    width: 100%;
+    min-height: 80px;
+    background: rgba(201,169,97,0.05);
+    border: 1px solid rgba(201,169,97,0.2);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bubble-text {
+    font-family: var(--serif);
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text);
+    text-align: center;
+    font-style: italic;
+  }
+  .bubble-text.dim {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  /* Mikrofon butonu */
+  .mic-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    background: transparent;
+    color: var(--gold);
+    font-size: 32px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mic-btn:hover { background: rgba(201,169,97,0.1); }
+  .mic-btn.recording {
+    background: rgba(201,169,97,0.15);
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+    animation: mic-pulse 1s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.3); }
+    50% { box-shadow: 0 0 0 12px rgba(255,107,107,0); }
+  }
+  .mic-btn:disabled { opacity: 0.4; cursor: not-allowed; animation: none; }
+
+  .mic-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* Kullanıcı yazısı */
+  .user-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    min-height: 20px;
+    letter-spacing: 1px;
+  }
+
+  /* Loading */
+  .loading { display: none; }
+  .loading.show { display: flex; align-items: center; gap: 8px; }
+  .dot {
+    width: 6px; height: 6px;
+    background: var(--gold);
+    border-radius: 50%;
+    animation: dot-bounce 1.2s ease-in-out infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40% { transform: translateY(-8px); opacity: 1; }
+  }
+
+  .divider { width: 40px; height: 1px; background: var(--gold); opacity: 0.4; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a class="back-btn" onclick="history.back()">← GERİ</a>
+  <a class="brand" href="https://hatirai.com">HATIR<span>AI</span></a>
+  <div style="width:60px"></div>
+</div>
+
+<div class="container">
+
+  <!-- Avatar -->
+  <div class="avatar-wrap">
+    <img id="amcaImg" src="https://res.cloudinary.com/dubei7eax/image/upload/v1778789994/Amca_yak%C4%B1n_a%C3%A7%C4%B1_g%C3%B6r%C3%BCn%C3%BCm_202605142304_chbswl.jpg" alt="Durmuş Amca">
+    <div class="speaking-ring" id="speakingRing"></div>
+  </div>
+
+  <div>
+    <div class="name">DURMUŞ AMCA</div>
+    <div class="subtitle">Huysuz ama yürekten</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Sohbet balonu -->
+  <div class="bubble-wrap">
+    <div class="bubble-text dim" id="bubbleText">
+      Konuşmak için mikrofona bas...
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+
+  <!-- Kullanıcı yazısı -->
+  <div class="user-text" id="userText"></div>
+
+  <!-- Mikrofon -->
+  <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎙️</button>
+  <div class="mic-hint" id="micHint">KONUŞMAK İÇİN BAS</div>
+
+</div>
+
+<audio id="audioPlayer" style="display:none"></audio>
+
+<script>
+const BACKEND = 'https://hatirai-backend-production.up.railway.app';
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let stream = null;
+
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = processAudio;
+    mediaRecorder.start();
+
+    isRecording = true;
+    document.getElementById('micBtn').classList.add('recording');
+    document.getElementById('micBtn').textContent = '⏹️';
+    document.getElementById('micHint').textContent = 'DURDURMAK İÇİN BAS';
+    document.getElementById('userText').textContent = '';
+    document.getElementById('bubbleText').textContent = '...';
+    document.getElementById('bubbleText').classList.remove('dim');
+  } catch(e) {
+    alert('Mikrofon erişimi gerekli.');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    stream.getTracks().forEach(t => t.stop());
+    isRecording = false;
+    document.getElementById('micBtn').classList.remove('recording');
+    document.getElementById('micBtn').textContent = '🎙️';
+    document.getElementById('micHint').textContent = 'İŞLENİYOR...';
+    document.getElementById('micBtn').disabled = true;
+  }
+}
+
+async function processAudio() {
+  const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  document.getElementById('loading').classList.add('show');
+
+  try {
+    // 1. STT — ses → metin
+    const sttFd = new FormData();
+    sttFd.append('audio', blob, 'audio.webm');
+    const sttRes = await fetch(`${BACKEND}/api/durmus/stt`, { method: 'POST', body: sttFd });
+    const sttData = await sttRes.json();
+    const userText = sttData.text || '';
+    document.getElementById('userText').textContent = userText ? `"${userText}"` : '';
+
+    if (!userText) {
+      document.getElementById('bubbleText').textContent = 'Ne dedin be, duyamadım gari...';
+      document.getElementById('bubbleText').classList.remove('dim');
+      document.getElementById('loading').classList.remove('show');
+      document.getElementById('micBtn').disabled = false;
+      document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
+      return;
+    }
+
+    // 2. Claude + ElevenLabs — cevap üret
+    const chatFd = new FormData();
+    chatFd.append('text', userText);
+    const chatRes = await fetch(`${BACKEND}/api/durmus/chat`, { method: 'POST', body: chatFd });
+    const chatData = await chatRes.json();
+
+    document.getElementById('bubbleText').textContent = chatData.cevap || '...';
+    document.getElementById('bubbleText').classList.remove('dim');
+
+    // 3. Sesi oynat
+    if (chatData.audio_b64) {
+      const audioBytes = atob(chatData.audio_b64);
+      const byteArr = new Uint8Array(audioBytes.length);
+      for (let i = 0; i < audioBytes.length; i++) byteArr[i] = audioBytes.charCodeAt(i);
+      const audioBlob = new Blob([byteArr], { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const player = document.getElementById('audioPlayer');
+      player.src = audioUrl;
+      document.getElementById('speakingRing').classList.add('active');
+      player.play();
+      player.onended = () => {
+        document.getElementById('speakingRing').classList.remove('active');
+        URL.revokeObjectURL(audioUrl);
+      };
+    }
+
+  } catch(e) {
+    document.getElementById('bubbleText').textContent = 'Bir hata oldu gari...';
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+    document.getElementById('micBtn').disabled = false;
+    document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
+  }
+}
+</script>
+</body>
+</html>
