@@ -5,449 +5,185 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Durmuş Amca ile Sohbet — HatırAI</title>
 <style>
-  :root {
-    --bg: #080808;
-    --text: #E8E0D0;
-    --text-dim: #9C9A93;
-    --gold: #C9A961;
-    --border: #1E1C18;
-    --mono: 'Courier New', monospace;
-    --serif: Georgia, serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--serif);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  /* Header */
-  .header {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--border);
-  }
-  .back-btn {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: var(--text);
-    text-decoration: none;
-    border-bottom: 1px solid var(--text);
-    padding-bottom: 2px;
-    cursor: pointer;
-  }
-  .brand {
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 4px;
-    color: var(--gold);
-    text-decoration: none;
-  }
-  .brand span { color: var(--text); }
-
-  /* Ana içerik */
-  .container {
-    max-width: 480px;
-    width: 100%;
-    padding: 32px 24px 80px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
-  }
-
-  /* Fotoğraf */
-  .avatar-wrap {
-    position: relative;
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 2px solid var(--gold);
-    box-shadow: 0 0 40px rgba(201,169,97,0.15);
-  }
-  .avatar-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center top;
-  }
-  .speaking-ring {
-    position: absolute;
-    inset: -4px;
-    border-radius: 50%;
-    border: 3px solid var(--gold);
-    opacity: 0;
-    transition: opacity 0.3s;
-    animation: none;
-  }
-  .speaking-ring.active {
-    opacity: 1;
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { transform: scale(1); opacity: 0.8; }
-    50% { transform: scale(1.05); opacity: 0.3; }
-  }
-
-  /* İsim */
-  .name {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 4px;
-    color: var(--gold);
-    text-align: center;
-  }
-  .subtitle {
-    font-family: var(--serif);
-    font-size: 13px;
-    color: var(--text-dim);
-    font-style: italic;
-    text-align: center;
-    line-height: 1.6;
-  }
-
-  /* Sohbet balonu */
-  .bubble-wrap {
-    width: 100%;
-    min-height: 80px;
-    background: rgba(201,169,97,0.05);
-    border: 1px solid rgba(201,169,97,0.2);
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .bubble-text {
-    font-family: var(--serif);
-    font-size: 16px;
-    line-height: 1.7;
-    color: var(--text);
-    text-align: center;
-    font-style: italic;
-  }
-  .bubble-text.dim {
-    color: var(--text-dim);
-    font-size: 13px;
-  }
-
-  /* Mikrofon butonu */
-  .mic-btn {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: 2px solid var(--gold);
-    background: transparent;
-    color: var(--gold);
-    font-size: 32px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .mic-btn:hover { background: rgba(201,169,97,0.1); }
-  .mic-btn.recording {
-    background: rgba(201,169,97,0.15);
-    border-color: #ff6b6b;
-    color: #ff6b6b;
-    animation: mic-pulse 1s ease-in-out infinite;
-  }
-  @keyframes mic-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.3); }
-    50% { box-shadow: 0 0 0 12px rgba(255,107,107,0); }
-  }
-  .mic-btn:disabled { opacity: 0.4; cursor: not-allowed; animation: none; }
-
-  .mic-hint {
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--text-dim);
-    text-align: center;
-  }
-
-  /* Kullanıcı yazısı */
-  .user-text {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-dim);
-    text-align: center;
-    min-height: 20px;
-    letter-spacing: 1px;
-  }
-
-  /* Loading */
-  .loading { display: none; }
-  .loading.show { display: flex; align-items: center; gap: 8px; }
-  .dot {
-    width: 6px; height: 6px;
-    background: var(--gold);
-    border-radius: 50%;
-    animation: dot-bounce 1.2s ease-in-out infinite;
-  }
-  .dot:nth-child(2) { animation-delay: 0.2s; }
-  .dot:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dot-bounce {
-    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-    40% { transform: translateY(-8px); opacity: 1; }
-  }
-
-  .divider { width: 40px; height: 1px; background: var(--gold); opacity: 0.4; }
+  :root { --bg:#080808;--text:#E8E0D0;--text-dim:#9C9A93;--gold:#C9A961;--border:#1E1C18;--mono:'Courier New',monospace;--serif:Georgia,serif; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--serif);min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+  .header{width:100%;display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--border);}
+  .back-btn{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text);text-decoration:none;border-bottom:1px solid var(--text);padding-bottom:2px;cursor:pointer;}
+  .brand{font-family:var(--mono);font-size:13px;letter-spacing:4px;color:var(--gold);text-decoration:none;}
+  .brand span{color:var(--text);}
+  .container{max-width:480px;width:100%;padding:32px 24px 80px;display:flex;flex-direction:column;align-items:center;gap:20px;}
+  .avatar-wrap{position:relative;width:180px;height:180px;border-radius:50%;overflow:hidden;border:2px solid var(--gold);box-shadow:0 0 40px rgba(201,169,97,0.15);}
+  .avatar-wrap img{width:100%;height:100%;object-fit:cover;object-position:center top;}
+  .speaking-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid var(--gold);opacity:0;transition:opacity 0.3s;}
+  .speaking-ring.active{opacity:1;animation:pulse 1.2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:0.8;}50%{transform:scale(1.05);opacity:0.3;}}
+  .name{font-family:var(--mono);font-size:11px;letter-spacing:4px;color:var(--gold);text-align:center;}
+  .subtitle{font-family:var(--serif);font-size:13px;color:var(--text-dim);font-style:italic;text-align:center;}
+  .bubble-wrap{width:100%;min-height:80px;background:rgba(201,169,97,0.05);border:1px solid rgba(201,169,97,0.2);padding:20px;display:flex;align-items:center;justify-content:center;}
+  .bubble-text{font-family:var(--serif);font-size:16px;line-height:1.7;color:var(--text);text-align:center;font-style:italic;}
+  .bubble-text.dim{color:var(--text-dim);font-size:13px;}
+  .user-text{font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center;min-height:18px;letter-spacing:1px;}
+  .loading{display:none;align-items:center;gap:8px;}
+  .loading.show{display:flex;}
+  .dot{width:6px;height:6px;background:var(--gold);border-radius:50%;animation:dot-bounce 1.2s ease-in-out infinite;}
+  .dot:nth-child(2){animation-delay:0.2s;}.dot:nth-child(3){animation-delay:0.4s;}
+  @keyframes dot-bounce{0%,80%,100%{transform:translateY(0);opacity:0.4;}40%{transform:translateY(-8px);opacity:1;}}
+  .input-row{width:100%;display:flex;gap:0;}
+  .input-row input{flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-right:none;color:var(--text);font-family:var(--serif);font-size:14px;padding:12px 16px;outline:none;}
+  .input-row input:focus{border-color:rgba(201,169,97,0.4);}
+  .input-row input::placeholder{color:var(--text-dim);}
+  .send-btn{background:var(--gold);border:none;color:#000;font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:12px 16px;cursor:pointer;white-space:nowrap;}
+  .mic-btn{width:72px;height:72px;border-radius:50%;border:2px solid var(--gold);background:transparent;color:var(--gold);font-size:28px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;}
+  .mic-btn:hover{background:rgba(201,169,97,0.1);}
+  .mic-btn.recording{border-color:#ff6b6b;color:#ff6b6b;animation:mic-pulse 1s ease-in-out infinite;}
+  @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,0.3);}50%{box-shadow:0 0 0 12px rgba(255,107,107,0);}}
+  .mic-btn:disabled{opacity:0.4;cursor:not-allowed;animation:none;}
+  .mic-hint{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);text-align:center;}
+  .divider{width:40px;height:1px;background:var(--gold);opacity:0.4;}
+  .or-text{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);}
 </style>
 </head>
 <body>
-
 <div class="header">
   <a class="back-btn" onclick="history.back()">← GERİ</a>
   <a class="brand" href="https://hatirai.com">HATIR<span>AI</span></a>
   <div style="width:60px"></div>
 </div>
-
 <div class="container">
-
-  <!-- Avatar -->
   <div class="avatar-wrap">
-    <img id="amcaImg" src="https://res.cloudinary.com/dubei7eax/image/upload/v1778789994/Amca_yak%C4%B1n_a%C3%A7%C4%B1_g%C3%B6r%C3%BCn%C3%BCm_202605142304_chbswl.jpg" alt="Durmuş Amca">
+    <img src="https://res.cloudinary.com/dubei7eax/image/upload/v1778789994/Amca_yak%C4%B1n_a%C3%A7%C4%B1_g%C3%B6r%C3%BCn%C3%BCm_202605142304_chbswl.jpg" alt="Durmuş Amca">
     <div class="speaking-ring" id="speakingRing"></div>
   </div>
-
   <div>
     <div class="name">DURMUŞ AMCA</div>
     <div class="subtitle">Huysuz ama yürekten</div>
   </div>
-
   <div class="divider"></div>
-
-  <!-- Sohbet balonu -->
   <div class="bubble-wrap">
-    <div class="bubble-text dim" id="bubbleText">
-      Konuşmak için mikrofona bas...
-    </div>
+    <div class="bubble-text dim" id="bubbleText">Naptun be yeğenim, ne istiyorsun gari...</div>
   </div>
-
-  <!-- Loading -->
   <div class="loading" id="loading">
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
   </div>
-
-  <!-- Kullanıcı yazısı -->
   <div class="user-text" id="userText"></div>
-
-  <!-- Yazarak konuşma -->
-  <div style="width:100%;display:flex;gap:8px;margin-top:-8px;">
-    <input type="text" id="textInput" placeholder="Yazarak da konuşabilirsin..." 
-      style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text);font-family:var(--serif);font-size:14px;padding:12px 16px;outline:none;"
-      onkeydown="if(event.key==='Enter') sendText()">
-    <button onclick="sendText()" 
-      style="background:var(--gold);border:none;color:#000;font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:12px 16px;cursor:pointer;">
-      GÖNDER
-    </button>
+  <div class="input-row">
+    <input type="text" id="textInput" placeholder="Durmuş Amca'ya bir şey sor..." onkeydown="if(event.key==='Enter')sendText()">
+    <button class="send-btn" onclick="sendText()">GÖNDER</button>
   </div>
-
-  <!-- Mikrofon -->
+  <div class="or-text">— VEYA —</div>
   <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎙️</button>
-  <div class="mic-hint" id="micHint">KONUŞMAK İÇİN BAS</div>
-
+  <div class="mic-hint" id="micHint">SESLİ KONUŞMAK İÇİN BAS</div>
 </div>
-
 <audio id="audioPlayer" style="display:none"></audio>
-
 <script>
-const BACKEND = 'https://hatirai-backend-production.up.railway.app';
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-let stream = null;
-let konusmalar = []; // hafıza
+const BACKEND='https://hatirai-backend-production.up.railway.app';
+let mediaRecorder=null,audioChunks=[],isRecording=false,stream=null,konusmalar=[];
 
-async function toggleRecording() {
-  if (isRecording) {
-    stopRecording();
-  } else {
-    startRecording();
-  }
+function setLoading(on){document.getElementById('loading').classList.toggle('show',on);}
+function setBubble(t,dim){const e=document.getElementById('bubbleText');e.textContent=t;e.classList.toggle('dim',!!dim);}
+function setUserText(t){document.getElementById('userText').textContent=t?`"${t}"`:'');}
+
+async function sendText(){
+  const inp=document.getElementById('textInput');
+  const t=inp.value.trim();
+  if(!t)return;
+  inp.value='';
+  setUserText(t);
+  setBubble('...',false);
+  await getCevap(t);
 }
 
-async function startRecording() {
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    audioChunks = [];
-
-    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-    mediaRecorder.onstop = processAudio;
-    mediaRecorder.start();
-
-    isRecording = true;
-    document.getElementById('micBtn').classList.add('recording');
-    document.getElementById('micBtn').textContent = '⏹️';
-    document.getElementById('micHint').textContent = 'DURDURMAK İÇİN BAS';
-    document.getElementById('userText').textContent = '';
-    document.getElementById('bubbleText').textContent = '...';
-    document.getElementById('bubbleText').classList.remove('dim');
-  } catch(e) {
-    alert('Mikrofon erişimi gerekli.');
-  }
-}
-
-function stopRecording() {
-  if (mediaRecorder && isRecording) {
-    mediaRecorder.stop();
-    stream.getTracks().forEach(t => t.stop());
-    isRecording = false;
-    document.getElementById('micBtn').classList.remove('recording');
-    document.getElementById('micBtn').textContent = '🎙️';
-    document.getElementById('micHint').textContent = 'İŞLENİYOR...';
-    document.getElementById('micBtn').disabled = true;
-  }
-}
-
-async function sendText() {
-  const input = document.getElementById('textInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  document.getElementById('userText').textContent = `"${text}"`;
-  document.getElementById('bubbleText').textContent = '...';
-  document.getElementById('bubbleText').classList.remove('dim');
-  await getCevap(text);
-}
-
-async function processAudio() {
-  const blob = new Blob(audioChunks, { type: 'audio/webm' });
-  document.getElementById('loading').classList.add('show');
-  document.getElementById('micBtn').disabled = true;
-  try {
-    const sttFd = new FormData();
-    sttFd.append('audio', blob, 'audio.webm');
-    const sttRes = await fetch(`${BACKEND}/api/durmus/stt`, { method: 'POST', body: sttFd });
-    const sttData = await sttRes.json();
-    const userText = sttData.text || '';
-    document.getElementById('userText').textContent = userText ? `"${userText}"` : '';
-    document.getElementById('loading').classList.remove('show');
-    if (!userText) {
-      document.getElementById('bubbleText').textContent = 'Ne dedin be, duyamadım gari...';
-      document.getElementById('bubbleText').classList.remove('dim');
-      document.getElementById('micBtn').disabled = false;
-      document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
-      return;
-    }
-    await getCevap(userText);
-  } catch(e) {
-    document.getElementById('bubbleText').textContent = 'Bir hata oldu gari...';
-    document.getElementById('loading').classList.remove('show');
-    document.getElementById('micBtn').disabled = false;
-  }
-  document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
-}
-
-async function getCevap(userText) {
-  document.getElementById('loading').classList.add('show');
-  document.getElementById('micBtn').disabled = true;
-  try {
-    const res = await fetch(`${BACKEND}/api/durmus/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: userText, history: konusmalar }),
+async function getCevap(userText){
+  setLoading(true);
+  document.getElementById('micBtn').disabled=true;
+  document.getElementById('micHint').textContent='BEKLENİYOR...';
+  try{
+    const res=await fetch(`${BACKEND}/api/durmus/chat`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:userText,history:konusmalar}),
     });
-    const data = await res.json();
-    const cevap = data.cevap || '...';
-
-    // Hafızaya ekle
-    konusmalar.push({ role: 'user', content: userText });
-    konusmalar.push({ role: 'assistant', content: cevap });
-    if (konusmalar.length > 20) konusmalar = konusmalar.slice(-20);
-
-    document.getElementById('bubbleText').textContent = cevap;
-    document.getElementById('bubbleText').classList.remove('dim');
-
-    if (data.audio_b64) {
-      const audioBytes = atob(data.audio_b64);
-      const byteArr = new Uint8Array(audioBytes.length);
-      for (let i = 0; i < audioBytes.length; i++) byteArr[i] = audioBytes.charCodeAt(i);
-      const audioBlob = new Blob([byteArr], { type: 'audio/mpeg' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const player = document.getElementById('audioPlayer');
-      player.src = audioUrl;
+    const data=await res.json();
+    const cevap=data.cevap||'Ne bilem gari...';
+    konusmalar.push({role:'user',content:userText});
+    konusmalar.push({role:'assistant',content:cevap});
+    if(konusmalar.length>20)konusmalar=konusmalar.slice(-20);
+    setBubble(cevap,false);
+    if(data.audio_b64){
+      const bytes=atob(data.audio_b64);
+      const arr=new Uint8Array(bytes.length);
+      for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);
+      const url=URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'}));
+      const player=document.getElementById('audioPlayer');
+      player.src=url;
       document.getElementById('speakingRing').classList.add('active');
       player.play();
-      player.onended = () => {
-        document.getElementById('speakingRing').classList.remove('active');
-        URL.revokeObjectURL(audioUrl);
-      };
+      player.onended=()=>{document.getElementById('speakingRing').classList.remove('active');URL.revokeObjectURL(url);};
     }
-  } catch(e) {
-    document.getElementById('bubbleText').textContent = 'Bir hata oldu gari...';
-  } finally {
-    document.getElementById('loading').classList.remove('show');
-    document.getElementById('micBtn').disabled = false;
-    document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
+  }catch(e){setBubble('Bir hata oldu gari...',false);}
+  finally{
+    setLoading(false);
+    document.getElementById('micBtn').disabled=false;
+    document.getElementById('micHint').textContent='SESLİ KONUŞMAK İÇİN BAS';
   }
 }
-  const blob = new Blob(audioChunks, { type: 'audio/webm' });
-  document.getElementById('loading').classList.add('show');
 
-  try {
-    // 1. STT — ses → metin
-    const sttFd = new FormData();
-    sttFd.append('audio', blob, 'audio.webm');
-    const sttRes = await fetch(`${BACKEND}/api/durmus/stt`, { method: 'POST', body: sttFd });
-    const sttData = await sttRes.json();
-    const userText = sttData.text || '';
-    document.getElementById('userText').textContent = userText ? `"${userText}"` : '';
+async function toggleRecording(){isRecording?stopRecording():await startRecording();}
 
-    if (!userText) {
-      document.getElementById('bubbleText').textContent = 'Ne dedin be, duyamadım gari...';
-      document.getElementById('bubbleText').classList.remove('dim');
-      document.getElementById('loading').classList.remove('show');
-      document.getElementById('micBtn').disabled = false;
-      document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
+async function startRecording(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mimeType=MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4';
+    mediaRecorder=new MediaRecorder(stream,{mimeType});
+    audioChunks=[];
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=processAudio;
+    mediaRecorder.start();
+    isRecording=true;
+    document.getElementById('micBtn').classList.add('recording');
+    document.getElementById('micBtn').textContent='⏹️';
+    document.getElementById('micHint').textContent='DURDURMAK İÇİN BAS';
+    setUserText('');
+    setBubble('Dinliyorum...',true);
+  }catch(e){alert('Mikrofon erişimi gerekli.');}
+}
+
+function stopRecording(){
+  if(mediaRecorder&&isRecording){
+    mediaRecorder.stop();
+    stream.getTracks().forEach(t=>t.stop());
+    isRecording=false;
+    document.getElementById('micBtn').classList.remove('recording');
+    document.getElementById('micBtn').textContent='🎙️';
+    document.getElementById('micHint').textContent='İŞLENİYOR...';
+    document.getElementById('micBtn').disabled=true;
+  }
+}
+
+async function processAudio(){
+  const blob=new Blob(audioChunks,{type:audioChunks[0]?.type||'audio/webm'});
+  setLoading(true);
+  try{
+    const fd=new FormData();
+    fd.append('audio',blob,'audio.webm');
+    const res=await fetch(`${BACKEND}/api/durmus/stt`,{method:'POST',body:fd});
+    const data=await res.json();
+    const text=(data.text||'').trim();
+    setLoading(false);
+    if(!text){
+      setBubble('Ne dedin be, duyamadım gari...',false);
+      document.getElementById('micBtn').disabled=false;
+      document.getElementById('micHint').textContent='SESLİ KONUŞMAK İÇİN BAS';
       return;
     }
-
-    // 2. Claude + ElevenLabs — cevap üret
-    const chatFd = new FormData();
-    chatFd.append('text', userText);
-    const chatRes = await fetch(`${BACKEND}/api/durmus/chat`, { method: 'POST', body: chatFd });
-    const chatData = await chatRes.json();
-
-    document.getElementById('bubbleText').textContent = chatData.cevap || '...';
-    document.getElementById('bubbleText').classList.remove('dim');
-
-    // 3. Sesi oynat
-    if (chatData.audio_b64) {
-      const audioBytes = atob(chatData.audio_b64);
-      const byteArr = new Uint8Array(audioBytes.length);
-      for (let i = 0; i < audioBytes.length; i++) byteArr[i] = audioBytes.charCodeAt(i);
-      const audioBlob = new Blob([byteArr], { type: 'audio/mpeg' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const player = document.getElementById('audioPlayer');
-      player.src = audioUrl;
-      document.getElementById('speakingRing').classList.add('active');
-      player.play();
-      player.onended = () => {
-        document.getElementById('speakingRing').classList.remove('active');
-        URL.revokeObjectURL(audioUrl);
-      };
-    }
-
-  } catch(e) {
-    document.getElementById('bubbleText').textContent = 'Bir hata oldu gari...';
-  } finally {
-    document.getElementById('loading').classList.remove('show');
-    document.getElementById('micBtn').disabled = false;
-    document.getElementById('micHint').textContent = 'KONUŞMAK İÇİN BAS';
+    setUserText(text);
+    await getCevap(text);
+  }catch(e){
+    setBubble('Ses işlenemedi gari...',false);
+    setLoading(false);
+    document.getElementById('micBtn').disabled=false;
+    document.getElementById('micHint').textContent='SESLİ KONUŞMAK İÇİN BAS';
   }
 }
 </script>
