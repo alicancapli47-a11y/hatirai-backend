@@ -2722,30 +2722,50 @@ async def did_get_token():
 
 @api_router.post("/durmus/chat")
 async def durmus_chat(request: Request):
-    """Durmuş Amca sesli sohbet — Whisper STT + Claude + ElevenLabs v3"""
+    """Durmuş Amca sesli sohbet — hafızalı, karakter kontrollü, ElevenLabs"""
     import httpx, base64 as _base64
     try:
-        form = await request.form()
-        user_text = form.get("text", "").strip()
+        body = await request.json()
+        user_text = body.get("text", "").strip()
+        history = body.get("history", [])  # [{role, content}]
 
         if not user_text:
             raise HTTPException(status_code=400, detail="Metin gerekli")
 
-        # Claude — Durmuş Amca karakteri
-        ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = await asyncio.to_thread(
-            ac.messages.create,
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=50,
-            system=(
-                "Sen Durmuş Amca'sın. Köylü, 70 yaş, huysuz. 1 CÜMLE söyle, nokta koy, bitir. "
-                "Şive: gari, yaw, ehe, ne bilem gari kullan. "
-                "Hikayen: Şehirli doğal tarım yaptı tuttu, yogacı/kasiyer/filozof arsaya geldi. "
-                "Hepsini seviyorsun ama söylemiyorsun. 1 CÜMLE. BITIR."
-            ),
-            messages=[{"role": "user", "content": user_text}]
+        SYSTEM = (
+            "Sen Durmuş Amca'sın. 70 yaşında Ege köylüsü, huysuz, dikbaşlı. "
+            "Doğal tarıma inanmıyorsun — 'ilaçsız olmaz gari', 'gübresiZ ne yetişir yaw' diyorsun. "
+            "Ama şehirli adam iddiayı kazandı, doğal tarım tuttu. Bunu kabul etmiyorsun ama içten etkilendin. "
+            "Arsaya yogacı, BİM kasiyeri kız, Platon'a inanan felsefe öğretmeni geldi. Tuhaf buluyorsun ama seviyorsun. "
+            "Şive: 'gari', 'yaw', 'ehe', 'olmaz o iş', 'ne bilem gari', 'geçti gitti' kullan. "
+            "2-3 cümle MAX. Huysuz ama samimi. Türkçe."
         )
-        cevap = response.content[0].text.strip()
+
+        # Konuşma geçmişi + yeni mesaj
+        messages = []
+        for h in history[-10:]:  # son 10 mesaj
+            if h.get("role") in ("user", "assistant") and h.get("content"):
+                messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": user_text})
+
+        ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+        # Karakter kontrolü — max 3 deneme
+        cevap = ""
+        for attempt in range(3):
+            response = await asyncio.to_thread(
+                ac.messages.create,
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=100,
+                system=SYSTEM,
+                messages=messages,
+            )
+            cevap = response.content[0].text.strip()
+            # Karakter kontrolü: şive kelimesi var mı?
+            sive = any(k in cevap.lower() for k in ["gari", "yaw", "ehe", "olmaz", "bilem", "geçti"])
+            if sive:
+                break
+            logger.info(f"[durmus] Karakter dışı, tekrar ({attempt+1}): {cevap[:50]}")
 
         # ElevenLabs v3 TTS
         voice_id = "gDuj8qNzuEaTuJGpTrpF"
@@ -2760,7 +2780,7 @@ async def durmus_chat(request: Request):
                     },
                     json={
                         "text": cevap,
-                        "model_id": "eleven_v3",
+                        "model_id": "eleven_flash_v2_5",
                         "voice_settings": {
                             "stability": 0.4,
                             "similarity_boost": 0.85,
