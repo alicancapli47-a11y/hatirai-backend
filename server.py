@@ -450,35 +450,40 @@ async def get_photo(photo_id: str):
 # ---------- Memory form + AI sentence ----------
 async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str]) -> str:
     if not last_memory or not last_memory.strip():
-        return f"{name}, seni cok ozledim."
+        return f"{name}, seni her gun dusunuyorum ve kalbimde hep yanimdasin."
     try:
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = await asyncio.to_thread(
             ac.messages.create,
             model="claude-sonnet-4-5-20250929",
-            max_tokens=100,
+            max_tokens=150,
             system=(
-                "Sen Turkce konusan, sicak, sinematik, hafif duygusal bir senaryo yazarisin. "
-                "Sana bir iliski, bir isim ve bir ani verilecek. "
-                "Fotodaki kisi (ornegin dede), video mesajinda karsi taraftaki kisiye (isim) hitap ediyor. "
+                "Sen Turkce konusan, sicak, sinematik, duygusal bir senaryo yazarisin. "
+                "Fotodaki kisi, video mesajinda karsi taraftaki kisiye hitap ediyor. "
                 "Fotodaki kisinin agzindan, karsi tarafin adini kullanarak, aniya atifta bulunan TEK bir cumle yaz. "
-                "En fazla 18 kelime. Kliseden kacin. Sadece cumleyi dondur."
+                "Cumle KESINLIKLE EN AZ 15, EN FAZLA 18 kelime olmali. "
+                "15 kelimenin altinda KABUL EDILMEZ. Say ve kontrol et. "
+                "Sakin, duygusal, aceleci degil. Kliseden kacin. Sadece cumleyi dondur."
             ),
             messages=[{
                 "role": "user",
                 "content": (
                     f"Fotodaki kisinin kim oldugu: {relationship}\n"
-                    f"Konusulan kisinin adi (hitap edilecek): {name}\n"
+                    f"Konusulan kisinin adi: {name}\n"
                     f"Paylasilan ani: {last_memory}\n\n"
-                    f"Fotodaki {relationship}, {name}'e hitap ederek bu aniya dair 1 cumle soylüyor."
+                    f"Fotodaki {relationship}, {name}'e hitap ederek bu aniya dair 15-18 kelimelik 1 cumle soylüyor."
                 )
             }]
         )
         line = (response.content[0].text or "").strip().strip('"').strip("'").splitlines()[0]
-        return line[:240] if line else f"{name}, o gunleri hic unutmadim."
+        words = line.split()
+        if len(words) < 15:
+            # Kisa geldiyse uzat
+            line = line.rstrip(".") + f", seni her gun dusunuyorum ve kalbimde hep yanimdasin."
+        return line[:300]
     except Exception as e:
         logger.warning(f"[ai-sentence] fallback ({e})")
-        return f"{name}, seni cok ozledim."
+        return f"{name}, seni her gun dusunuyorum ve kalbimde hep yanimdasin."
 
 
 async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str) -> str:
