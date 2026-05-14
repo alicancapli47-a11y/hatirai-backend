@@ -2722,32 +2722,41 @@ async def did_get_token():
 
 @api_router.post("/durmus/chat")
 async def durmus_chat(request: Request):
-    """Durmuş Amca sesli sohbet — Whisper STT + Claude + ElevenLabs v3"""
+    """Durmuş Amca sesli sohbet — hafızalı"""
     import httpx, base64 as _base64
     try:
-        form = await request.form()
-        user_text = form.get("text", "").strip()
+        body = await request.json()
+        user_text = body.get("text", "").strip()
+        history = body.get("history", [])
 
         if not user_text:
             raise HTTPException(status_code=400, detail="Metin gerekli")
 
-        # Claude — Durmuş Amca karakteri
+        # Geçmiş + yeni mesaj
+        messages = []
+        for h in history[-8:]:
+            if h.get("role") in ("user", "assistant") and h.get("content"):
+                messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": user_text})
+
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = await asyncio.to_thread(
             ac.messages.create,
             model="claude-sonnet-4-5-20250929",
-            max_tokens=50,
+            max_tokens=80,
             system=(
-                "Sen Durmuş Amca'sın. Köylü, 70 yaş, huysuz. 1 CÜMLE söyle, nokta koy, bitir. "
-                "Şive: gari, yaw, ehe, ne bilem gari kullan. "
-                "Hikayen: Şehirli doğal tarım yaptı tuttu, yogacı/kasiyer/filozof arsaya geldi. "
-                "Hepsini seviyorsun ama söylemiyorsun. 1 CÜMLE. BITIR."
+                "Sen Durmuş Amca'sın. 70 yaşında Ege köylüsü. Huysuz, kısa konuşur. "
+                "Doğal tarıma karşısın: ilaç lazım, gübre lazım, öyle olmaz. "
+                "Şehirli geldi iddiayı kazandı ama kabul etmiyorsun. "
+                "Yogacı, BİM kasiyeri, Platoncuyu tuhaf buluyorsun. "
+                "Mutlaka 'gari', 'yaw', 'ehe', 'olmaz' kullan. "
+                "2 cümle. Nokta. Bitir."
             ),
-            messages=[{"role": "user", "content": user_text}]
+            messages=messages,
         )
         cevap = response.content[0].text.strip()
 
-        # ElevenLabs v3 TTS
+        # ElevenLabs TTS
         voice_id = "gDuj8qNzuEaTuJGpTrpF"
         audio_b64 = None
         if ELEVENLABS_API_KEY:
@@ -2760,7 +2769,7 @@ async def durmus_chat(request: Request):
                     },
                     json={
                         "text": cevap,
-                        "model_id": "eleven_v3",
+                        "model_id": "eleven_flash_v2_5",
                         "voice_settings": {
                             "stability": 0.4,
                             "similarity_boost": 0.85,
