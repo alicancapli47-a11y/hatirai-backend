@@ -1948,9 +1948,6 @@ async def retry_video(job_id: str):
         raise HTTPException(status_code=403, detail="Odeme yapilmamis")
     if job.get("status") == "generating":
         return {"message": "Zaten uretiliyor"}
-    # Maksimum 1 tekrar deneme hakki
-    if job.get("retry_count", 0) >= 1:
-        raise HTTPException(status_code=403, detail="Tekrar deneme hakkiniz doldu. Odemeniz iade edilecektir.")
     await db.video_jobs.update_one(
         {"id": job_id},
         {"$set": {"status": "generating", "progress": 0, "error": None, "media_url": None},
