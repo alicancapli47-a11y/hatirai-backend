@@ -82,7 +82,7 @@ let mediaRecorder=null,audioChunks=[],isRecording=false,stream=null,konusmalar=[
 
 function setLoading(on){document.getElementById('loading').classList.toggle('show',on);}
 function setBubble(t,dim){const e=document.getElementById('bubbleText');e.textContent=t;e.classList.toggle('dim',!!dim);}
-function setUserText(t){document.getElementById('userText').textContent=t?`"${t}"`:'');}
+function setUserText(t){document.getElementById('userText').textContent=t?('"'+t+'"'):'';}
 
 async function sendText(){
   const inp=document.getElementById('textInput');
