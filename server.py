@@ -2749,7 +2749,7 @@ async def durmus_chat(request: Request):
                 "Doğal tarıma karşısın: ilaç lazım, gübre lazım, öyle olmaz. "
                 "Şehirli geldi iddiayı kazandı ama kabul etmiyorsun. "
                 "Yogacı, BİM kasiyeri, Platoncuyu tuhaf buluyorsun. "
-                "Mutlaka 'gari', 'yaw', 'ehe', 'olmaz' kullan. "
+                "Mutlaka 'gari', 'yaw', 'olmaz' kullan. "
                 "2 cümle. Nokta. Bitir."
             ),
             messages=messages,
@@ -2769,7 +2769,7 @@ async def durmus_chat(request: Request):
                     },
                     json={
                         "text": cevap,
-                        "model_id": "eleven_flash_v2_5",
+                        "model_id": "eleven_v3",
                         "voice_settings": {
                             "stability": 0.4,
                             "similarity_boost": 0.85,
