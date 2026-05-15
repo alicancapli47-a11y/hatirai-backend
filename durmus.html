@@ -41,6 +41,17 @@
   .mic-btn:disabled{opacity:0.4;cursor:not-allowed;animation:none;}
   .mic-hint{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);text-align:center;}
   .divider{width:40px;height:1px;background:var(--gold);opacity:0.4;}
+
+  /* Modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100;align-items:center;justify-content:center;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:#111;border:1px solid var(--gold);padding:40px 32px;max-width:360px;width:90%;text-align:center;display:flex;flex-direction:column;gap:16px;}
+  .modal-title{font-family:var(--mono);font-size:11px;letter-spacing:4px;color:var(--gold);}
+  .modal-text{font-family:var(--serif);font-size:15px;color:var(--text);line-height:1.7;font-style:italic;}
+  .modal-btn{background:var(--gold);border:none;color:#000;font-family:var(--mono);font-size:11px;letter-spacing:3px;padding:16px;cursor:pointer;text-decoration:none;display:block;}
+  .modal-btn:hover{opacity:0.85;}
+  .timer-bar{width:100%;height:2px;background:var(--border);position:relative;overflow:hidden;}
+  .timer-fill{height:100%;background:var(--gold);width:100%;transition:width 1s linear;}
   .or-text{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);}
 </style>
 </head>
@@ -75,8 +86,46 @@
   <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎙️</button>
   <div class="mic-hint" id="micHint">SESLİ KONUŞMAK İÇİN BAS</div>
 </div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">SÜREN DOLDU</div>
+    <div class="modal-text">"Yaw yeğenim, daha konuşmak istiyorsan üye olman lazım gari. Bedavaya bu kadar."</div>
+    <div class="timer-bar"><div class="timer-fill" id="timerFill"></div></div>
+    <a class="modal-btn" href="https://hatirai.com/login">ÜYE OL · DEVAM ET</a>
+  </div>
+</div>
 <audio id="audioPlayer" style="display:none"></audio>
 <script>
+
+// 3 dakika timer
+const FREE_SECONDS = 180;
+let secondsLeft = FREE_SECONDS;
+let timerInterval = null;
+let locked = false;
+
+function startTimer() {
+  const fill = document.getElementById('timerFill');
+  timerInterval = setInterval(() => {
+    secondsLeft--;
+    if (fill) fill.style.width = (secondsLeft / FREE_SECONDS * 100) + '%';
+    if (secondsLeft <= 0) {
+      clearInterval(timerInterval);
+      lockChat();
+    }
+  }, 1000);
+}
+
+function lockChat() {
+  locked = true;
+  document.getElementById('modalOverlay').classList.add('show');
+  document.getElementById('micBtn').disabled = true;
+  document.getElementById('textInput').disabled = true;
+  document.getElementById('micHint').textContent = 'SÜREN DOLDU';
+}
+
+startTimer();
+
 const BACKEND='https://hatirai-backend-production.up.railway.app';
 let mediaRecorder=null,audioChunks=[],isRecording=false,stream=null,konusmalar=[];
 
@@ -95,6 +144,7 @@ async function sendText(){
 }
 
 async function getCevap(userText){
+  if(locked){lockChat();return;}
   setLoading(true);
   document.getElementById('micBtn').disabled=true;
   document.getElementById('micHint').textContent='BEKLENİYOR...';
