@@ -1742,9 +1742,27 @@ async def lemonsqueezy_webhook(request: Request):
 
         # Seedance job mu, Veo job mu?
         seedance_job_id = custom_data.get("seedance_job_id", "")
+        ozel_gun_job_id = custom_data.get("ozel_gun_job_id", "")
         veo_job_id = custom_data.get("job_id", "") or attrs.get("notes", "")
 
-        if seedance_job_id:
+        if ozel_gun_job_id:
+            job = await db.ozel_gun_jobs.find_one({"id": ozel_gun_job_id}, {"_id": 0})
+            if not job:
+                return {"status": "error", "detail": "ozel_gun job not found"}
+            if job.get("payment_status") == "paid":
+                return {"status": "already_paid"}
+            await db.ozel_gun_jobs.update_one(
+                {"id": ozel_gun_job_id},
+                {"$set": {"payment_status": "paid", "status": "processing", "paid_at": datetime.now(timezone.utc)}}
+            )
+            photos = job.get("photos", [])
+            asyncio.create_task(_run_ozel_gun(
+                ozel_gun_job_id, photos, job["ozel_gun"], job.get("mesaj", ""), job.get("isim", ""), job.get("language", "tr")
+            ))
+            logger.info(f"[lemonsqueezy] Özel gün ödeme onaylandı: {ozel_gun_job_id}")
+            return {"status": "ok"}
+
+        elif seedance_job_id:
             # Seedance pipeline
             job = await db.seedance_jobs.find_one({"id": seedance_job_id}, {"_id": 0})
             if not job:
@@ -2295,6 +2313,365 @@ async def _add_seedance_watermark(job_id: str, video_url: str) -> Optional[str]:
             shutil.rmtree(workdir, ignore_errors=True)
         except Exception:
             pass
+
+
+# ===================== ÖZEL GÜN KLİBİ (KLING 3.0) =====================
+
+OZEL_GUN_TYPES = {
+    "dogum_gunu": {
+        "label": "Doğum Günü",
+        "emoji": "🎂",
+        "music": "birthday_emotional.mp3",
+        "prompt_tr": "Warm birthday celebration, emotional and joyful atmosphere, golden confetti falling slowly, soft bokeh lights, cinematic close-up of a smiling face looking at camera with love and warmth.",
+        "prompt_en": "Warm birthday celebration, emotional and joyful atmosphere, golden confetti falling slowly, soft bokeh lights, cinematic close-up of a smiling face looking at camera with love and warmth.",
+    },
+    "bayram": {
+        "label": "Bayram Kutlaması",
+        "emoji": "🌙",
+        "music": "bayram_emotional.mp3",
+        "prompt_tr": "Warm festive celebration, traditional atmosphere, soft golden light, person smiling warmly at camera, emotional and heartfelt, cinematic portrait.",
+        "prompt_en": "Warm festive celebration, traditional atmosphere, soft golden light, person smiling warmly at camera, emotional and heartfelt, cinematic portrait.",
+    },
+    "yeni_bebek": {
+        "label": "Yeni Bebek",
+        "emoji": "👶",
+        "music": "baby_emotional.mp3",
+        "prompt_tr": "Tender and joyful newborn celebration, soft pastel colors, warm gentle light, person looking at camera with pure joy and love, cinematic and emotional.",
+        "prompt_en": "Tender and joyful newborn celebration, soft pastel colors, warm gentle light, person looking at camera with pure joy and love, cinematic and emotional.",
+    },
+    "yildonumu": {
+        "label": "Yıldönümü",
+        "emoji": "💍",
+        "music": "anniversary_emotional.mp3",
+        "prompt_tr": "Romantic anniversary celebration, soft candlelight, rose petals, person gazing at camera with deep love and emotion, cinematic portrait with warm golden tones.",
+        "prompt_en": "Romantic anniversary celebration, soft candlelight, rose petals, person gazing at camera with deep love and emotion, cinematic portrait with warm golden tones.",
+    },
+    "mezuniyet": {
+        "label": "Mezuniyet",
+        "emoji": "🎓",
+        "music": "graduation_emotional.mp3",
+        "prompt_tr": "Proud graduation celebration, person smiling triumphantly at camera, confetti in the air, warm sunlight, emotional and uplifting cinematic portrait.",
+        "prompt_en": "Proud graduation celebration, person smiling triumphantly at camera, confetti in the air, warm sunlight, emotional and uplifting cinematic portrait.",
+    },
+    "gecmis_olsun": {
+        "label": "Geçmiş Olsun",
+        "emoji": "💛",
+        "music": "getwell_emotional.mp3",
+        "prompt_tr": "Warm and caring get-well atmosphere, person looking at camera with gentle love and concern, soft warm light, hopeful and healing cinematic portrait.",
+        "prompt_en": "Warm and caring get-well atmosphere, person looking at camera with gentle love and concern, soft warm light, hopeful and healing cinematic portrait.",
+    },
+}
+
+
+async def _kling_clip(image_url: str, prompt: str) -> str:
+    """Kling 3.0 ile tek klip üret."""
+    handle = await fal_client.submit_async(
+        "fal-ai/kling-video/v1.6/pro/image-to-video",
+        arguments={
+            "prompt": prompt,
+            "image_url": image_url,
+            "duration": "5",
+            "aspect_ratio": "9:16",
+        },
+    )
+    result = await handle.get()
+    return result["video"]["url"]
+
+
+async def _run_ozel_gun(job_id: str, photos: list, ozel_gun: str, mesaj: str, isim: str, language: str = "tr"):
+    """
+    Kling 3.0 ile özel gün klibi üret:
+    - 3 fotoğraftan 3 ayrı klip
+    - ElevenLabs ile duygusal mesaj seslendirme
+    - Hazır enstrümantal müzik altta
+    - ffmpeg kurgu + mix
+    """
+    import tempfile as _tf
+    workdir = _tf.mkdtemp(prefix=f"ozel-{job_id}-")
+    logger.info(f"[ozel-gun {job_id}] Pipeline başladı: {ozel_gun}, {len(photos)} foto")
+
+    try:
+        gun_data = OZEL_GUN_TYPES.get(ozel_gun, OZEL_GUN_TYPES["dogum_gunu"])
+        prompt = gun_data[f"prompt_{language}"] if f"prompt_{language}" in gun_data else gun_data["prompt_tr"]
+
+        # Claude ile duygusal mesaj üret
+        ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        lang_instruction = {
+            "tr": f"Türkçe yaz. Samimi, duygusal, kısa (3-4 cümle).",
+            "en": f"Write in English. Sincere, emotional, short (3-4 sentences).",
+            "az": f"Azerbaycan dilinde yaz. Samimi, duyğusal, qısa (3-4 cümlə).",
+        }.get(language, "Türkçe yaz.")
+
+        gun_label = gun_data["label"]
+        system_prompt = (
+            f"Sen duygusal bir {gun_label} mesajı yazıyorsun. "
+            f"{isim} adına gönderilecek. "
+            f"Verilen anıyı veya bilgiyi kullan. "
+            f"{lang_instruction} "
+            f"Sadece mesajı yaz, başka hiçbir şey ekleme."
+        )
+        claude_resp = await asyncio.to_thread(
+            ac.messages.create,
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=200,
+            system=system_prompt,
+            messages=[{"role": "user", "content": f"Isim: {isim}\nMesaj: {mesaj}"}]
+        )
+        generated_mesaj = claude_resp.content[0].text.strip()
+        logger.info(f"[ozel-gun {job_id}] Mesaj üretildi: {generated_mesaj[:100]}")
+
+        # ElevenLabs TTS
+        voice_id = ELEVENLABS_VOICES.get("default", "FYPltOzsM2n1UbqzX19d")
+        audio_path = await _generate_elevenlabs_audio(
+            generated_mesaj, voice_id, workdir, "mesaj.mp3"
+        )
+
+        # Her fotoğrafı yükle ve Kling klibi üret
+        clip_paths = []
+        for i, p in enumerate(photos[:3]):
+            tmp = _tf.NamedTemporaryFile(suffix=".jpg", delete=False, dir=workdir)
+            tmp.write(_b64.b64decode(p["b64"]))
+            tmp.close()
+            img_url = await fal_client.upload_file_async(tmp.name)
+            os.unlink(tmp.name)
+
+            logger.info(f"[ozel-gun {job_id}] Klip {i+1} üretiliyor...")
+            try:
+                video_url = await _kling_clip(img_url, prompt)
+                clip_local = os.path.join(workdir, f"clip_{i}.mp4")
+                await asyncio.to_thread(_http_download, video_url, clip_local)
+                clip_paths.append(clip_local)
+                logger.info(f"[ozel-gun {job_id}] Klip {i+1} hazır")
+            except Exception as e:
+                logger.warning(f"[ozel-gun {job_id}] Klip {i+1} başarısız: {e}")
+
+            await db.ozel_gun_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"progress": int((i+1) / len(photos) * 60)}}
+            )
+
+        if not clip_paths:
+            raise Exception("Hiç klip üretilemedi")
+
+        # Klipleri birleştir
+        concat_path = os.path.join(workdir, "concat.mp4")
+        await asyncio.to_thread(_ffmpeg_concat, clip_paths, concat_path)
+
+        # Ses + müzik mix et
+        final_path = os.path.join(workdir, "final.mp4")
+        if audio_path and os.path.exists(audio_path):
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", concat_path,
+                "-i", audio_path,
+                "-filter_complex",
+                "[1:a]volume=1.0[voice];[0:a]volume=0.15[orig];[orig][voice]amix=inputs=2:duration=first[audio]",
+                "-map", "0:v",
+                "-map", "[audio]",
+                "-c:v", "copy",
+                "-c:a", "aac", "-b:a", "128k",
+                "-shortest",
+                final_path,
+            ]
+            await asyncio.to_thread(
+                lambda: subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+            )
+        else:
+            final_path = concat_path
+
+        # Watermark ekle
+        watermarked = await _add_seedance_watermark(job_id, "")
+        # Direkt upload
+        final_url = await fal_client.upload_file_async(final_path)
+        logger.info(f"[ozel-gun {job_id}] Final URL: {final_url}")
+
+        await db.ozel_gun_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "ready",
+                "video_url": final_url,
+                "generated_mesaj": generated_mesaj,
+                "progress": 100,
+            }}
+        )
+
+    except Exception as e:
+        logger.exception(f"[ozel-gun {job_id}] Hata")
+        await db.ozel_gun_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "failed", "error": str(e)[:500]}}
+        )
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+@api_router.get("/ozel-gun/types")
+async def ozel_gun_types():
+    return [
+        {"id": k, "label": v["label"], "emoji": v["emoji"]}
+        for k, v in OZEL_GUN_TYPES.items()
+    ]
+
+
+@api_router.post("/ozel-gun/create")
+async def ozel_gun_create(request: Request, user: Optional[dict] = Depends(current_user)):
+    """Özel gün klibi job oluştur."""
+    try:
+        import base64 as _base64
+        form = await request.form()
+        ozel_gun = form.get("ozel_gun", "dogum_gunu")
+        isim = form.get("isim", "").strip()
+        mesaj = form.get("mesaj", "").strip()
+        language = form.get("language", "tr")
+
+        if ozel_gun not in OZEL_GUN_TYPES:
+            raise HTTPException(status_code=400, detail="Geçersiz özel gün türü")
+        if not isim:
+            raise HTTPException(status_code=400, detail="İsim gerekli")
+
+        photos = []
+        for i in range(3):
+            photo_file = form.get(f"photo_{i}")
+            if not photo_file:
+                continue
+            photo_bytes = await photo_file.read()
+            if not photo_bytes:
+                continue
+            b64 = _base64.b64encode(photo_bytes).decode()
+            photos.append({"b64": b64, "index": i})
+
+        if not photos:
+            raise HTTPException(status_code=400, detail="En az 1 fotoğraf gerekli")
+
+        job_id = str(uuid.uuid4())
+        job_doc = {
+            "id": job_id,
+            "ozel_gun": ozel_gun,
+            "isim": isim,
+            "mesaj": mesaj,
+            "language": language,
+            "photos": photos,
+            "status": "awaiting_payment",
+            "payment_status": "unpaid",
+            "video_url": None,
+            "progress": 0,
+            "created_at": datetime.now(timezone.utc),
+            "user_id": user["user_id"] if user else None,
+        }
+        await db.ozel_gun_jobs.insert_one(job_doc)
+        logger.info(f"[ozel-gun] job={job_id} gun={ozel_gun} isim={isim}")
+        return {"job_id": job_id, "status": "awaiting_payment"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[ozel-gun/create] Hata")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/ozel-gun/payment/init")
+async def ozel_gun_payment_init(request: Request):
+    """Özel gün klibi için ödeme başlat."""
+    import httpx
+    try:
+        body = await request.json()
+        job_id = body.get("job_id")
+        if not job_id:
+            raise HTTPException(status_code=400, detail="job_id gerekli")
+
+        job = await db.ozel_gun_jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job:
+            raise HTTPException(status_code=404, detail="Job bulunamadı")
+        if job.get("payment_status") == "paid":
+            raise HTTPException(status_code=400, detail="Zaten ödendi")
+
+        test_mode = os.environ.get("LEMON_TEST_MODE", "false").lower() == "true"
+        if test_mode:
+            api_key = os.environ.get("LEMONSQUEEZY_API_KEY_TEST", "")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_TEST", "1640878")
+            store_id = os.environ.get("LEMONSQUEEZY_STORE_ID_TEST", "370282")
+        else:
+            api_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_OZEL_GUN", "1643185")
+            store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "370282")
+
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
+                "https://api.lemonsqueezy.com/v1/checkouts",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/vnd.api+json",
+                    "Accept": "application/vnd.api+json",
+                },
+                json={
+                    "data": {
+                        "type": "checkouts",
+                        "attributes": {
+                            "checkout_data": {
+                                "custom": {"ozel_gun_job_id": job_id}
+                            },
+                            "product_options": {
+                                "redirect_url": f"{PUBLIC_BACKEND_URL}/api/ozel-gun/result/{job_id}",
+                            }
+                        },
+                        "relationships": {
+                            "store": {"data": {"type": "stores", "id": store_id}},
+                            "variant": {"data": {"type": "variants", "id": variant_id}}
+                        }
+                    }
+                }
+            )
+            resp.raise_for_status()
+            checkout = resp.json()
+            checkout_url = checkout["data"]["attributes"]["url"]
+            return {"checkout_url": checkout_url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[ozel-gun-payment] Hata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/ozel-gun/job/{job_id}")
+async def ozel_gun_job_status(job_id: str):
+    doc = await db.ozel_gun_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Job bulunamadı")
+    return {
+        "id": doc["id"],
+        "ozel_gun": doc.get("ozel_gun"),
+        "isim": doc.get("isim"),
+        "status": doc.get("status", "awaiting_payment"),
+        "payment_status": doc.get("payment_status", "unpaid"),
+        "video_url": doc.get("video_url"),
+        "generated_mesaj": doc.get("generated_mesaj"),
+        "progress": doc.get("progress", 0),
+        "error": doc.get("error"),
+    }
+
+
+@api_router.post("/ozel-gun/admin-free/{job_id}")
+async def ozel_gun_admin_free(job_id: str, user: dict = Depends(require_user)):
+    if not _is_admin_user(user):
+        raise HTTPException(status_code=403, detail="Sadece admin")
+    job = await db.ozel_gun_jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job bulunamadı")
+    if job.get("status") == "processing":
+        return {"status": "processing"}
+    if job.get("status") == "ready":
+        return {"status": "ready", "video_url": job.get("video_url")}
+    await db.ozel_gun_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"payment_status": "paid", "status": "processing"}}
+    )
+    photos = job.get("photos", [])
+    asyncio.create_task(_run_ozel_gun(
+        job_id, photos, job["ozel_gun"], job.get("mesaj", ""), job.get("isim", ""), job.get("language", "tr")
+    ))
+    logger.info(f"[ozel-gun-admin] job={job_id} pipeline başladı")
+    return {"status": "processing"}
 
 
 async def _run_seedance(job_id: str, photos: list, concept: str):
