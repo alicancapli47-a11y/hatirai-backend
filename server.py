@@ -457,59 +457,42 @@ def _to_ascii(text: str) -> str:
 
 OCCASION_PROMPTS = {
     "normal": {
-        "system": (
-            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-            "Fotodaki kisi karsi taraftaki kisiye samimi bir video mesaji birakiyor. "
-            "15-18 kelime, sakin, duygusal, isim kullan."
-        ),
+        "fixed_script": None,  # Claude uretir
         "veo_style": "speaks SLOWLY, CALMLY and EMOTIONALLY in Turkish",
-        "fallback": lambda name: f"{name}, seni her gun dusunuyorum ve kalbimde hep yanimdasin.",
+        "fallback": lambda name: f"Sevgili {name}, yaninda degilim diye dusunme ben her an senin yanindayim, seni goruyorum.",
     },
     "dogum_gunu": {
-        "system": (
-            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-            "Fotodaki kisi, karsi taraftaki kisinin DOGUM GUNUNU kutluyor. "
-            "Cok icten, sevgi dolu, mutlu bir kutlama cumlesi yaz. "
-            "15-18 kelime, isim kullan, dogum gunune atif yap."
-        ),
-        "veo_style": "speaks WARMLY and JOYFULLY in Turkish, with a big loving smile",
-        "fallback": lambda name: f"Dogum gunun kutlu olsun {name}, bu ozel gunde kalbim seninle dolu.",
+        "fixed_script": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Doğum günün kutlu olsun!",
+        "veo_style": "speaks WARMLY and EMOTIONALLY in Turkish, with a loving warm smile",
+        "fallback": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım. Doğum günün kutlu olsun!",
     },
     "bayram": {
-        "system": (
-            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-            "Fotodaki kisi, karsi taraftaki kisinin BAYRAMINI kutluyor. "
-            "Samimi, sicak, geleneksel bir bayram kutlama cumlesi yaz. "
-            "15-18 kelime, isim kullan, bayrami kutla."
-        ),
+        "fixed_script": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Bayramın kutlu olsun!",
         "veo_style": "speaks WARMLY and SINCERELY in Turkish, with a gentle loving smile",
-        "fallback": lambda name: f"Bayramin kutlu olsun {name}, bu mubarek gunlerde seni cok ozledim.",
+        "fallback": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım. Bayramın kutlu olsun!",
     },
     "yildonumu": {
-        "system": (
-            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-            "Fotodaki kisi, karsi taraftaki kisinin YILDONUMUNU kutluyor. "
-            "Romantik, duygusal, ozlem dolu bir kutlama cumlesi yaz. "
-            "15-18 kelime, isim kullan."
-        ),
+        "fixed_script": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Yıldönümümüz kutlu olsun!",
         "veo_style": "speaks TENDERLY and EMOTIONALLY in Turkish, with warm loving eyes",
-        "fallback": lambda name: f"Yildonumumuz kutlu olsun {name}, seninle gecirdigim her an hayatimin anlami.",
+        "fallback": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım. Yıldönümümüz kutlu olsun!",
     },
     "mezuniyet": {
-        "system": (
-            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
-            "Fotodaki kisi, karsi taraftaki kisinin MEZUNIYETINI kutluyor. "
-            "Gurur dolu, sevgi dolu, ilham verici bir kutlama cumlesi yaz. "
-            "15-18 kelime, isim kullan, basariyi kutla."
-        ),
+        "fixed_script": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Mezuniyetin kutlu olsun!",
         "veo_style": "speaks PROUDLY and EMOTIONALLY in Turkish, with eyes full of pride and love",
-        "fallback": lambda name: f"Mezuniyetin kutlu olsun {name}, sana olan gurur ve sevgim her zaman yaninda.",
+        "fallback": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım. Mezuniyetin kutlu olsun!",
     },
 }
 
 # ---------- Memory form + AI sentence ----------
 async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str], occasion: str = "normal") -> str:
     occ = OCCASION_PROMPTS.get(occasion, OCCASION_PROMPTS["normal"])
+    
+    # Kutlama occasion'larında sabit metin kullan — Claude'a gerek yok
+    fixed = occ.get("fixed_script")
+    if fixed is not None:
+        return fixed(name)
+    
+    # Normal mesaj — Claude üretir
     fallback = occ["fallback"](name)
     if not last_memory or not last_memory.strip():
         if occasion != "normal":
@@ -851,9 +834,8 @@ async def _heygen_clip(image_url: str, script: str, relationship: str = "") -> s
 
 async def _run_veo_pipeline(job_id: str):
     """
-    2 x 8s Veo klibi uret, son kare gecisl ile birlestir → 16s final video.
-    Veo generate_audio=True: kendi sinematik sesini uretir.
-    Prompt tamamen Ingilizce, Turkce metin veya ozel karakter YOK.
+    Kutlama occasion'larında: tek 8sn klip, ffmpeg yok.
+    Normal mesajda: 2 x 8s = 16s, concat.
     """
     workdir = tempfile.mkdtemp(prefix=f"veo-{job_id}-")
     try:
@@ -898,34 +880,36 @@ async def _run_veo_pipeline(job_id: str):
             "Subtle mouth movement, intimate close-up, slow blinks. ",
         ]
 
+        # Occasion kontrolü — kutlama ise tek 8sn klip
+        occasion = job.get("occasion", "normal")
+        is_celebration = occasion in ("dogum_gunu", "bayram", "yildonumu", "mezuniyet")
+        num_clips = 1 if is_celebration else NUM_CLIPS
+
         # Script'i klip sayisina gore esit parcalara bol
         sentences = [s.strip() for s in full_script.replace("...", ".").split(".") if s.strip()]
-        per = max(1, len(sentences) // NUM_CLIPS)
-        chunks = [". ".join(sentences[i * per:(i + 1) * per]) for i in range(NUM_CLIPS - 1)]
-        chunks.append(". ".join(sentences[(NUM_CLIPS - 1) * per:]))
+        per = max(1, len(sentences) // num_clips)
+        chunks = [". ".join(sentences[i * per:(i + 1) * per]) for i in range(num_clips - 1)]
+        chunks.append(". ".join(sentences[(num_clips - 1) * per:]))
 
-        # Anı bilgileri — isim oldugu gibi geciyor, Turkce karakter sorun degil
+        # Anı bilgileri
         name_for_prompt = (form or {}).get("name") or "sevdigi biri"
 
         clip_paths: List[str] = []
         current_ref = ref_url
 
-        for i in range(NUM_CLIPS):
+        for i in range(num_clips):
             lighting = random.choice(LIGHTINGS)
             expression = random.choice(EXPRESSIONS)
             movement = random.choice(MOVEMENTS)
 
             # Bu klip icin soylenecek cumleleri al
             chunk_text = chunks[i] if chunks[i] else full_script
-            is_last = (i == NUM_CLIPS - 1)
+            is_last = (i == num_clips - 1)
 
-            # Occasion'a gore stil + ASCII donusum
+            # Occasion'a gore stil
             occasion = job.get("occasion", "normal")
             occ_data = OCCASION_PROMPTS.get(occasion, OCCASION_PROMPTS["normal"])
             speak_style = occ_data["veo_style"]
-            chunk_ascii = _to_ascii(chunk_text)
-            name_ascii = _to_ascii(name_for_prompt)
-            rel_ascii = _to_ascii(relationship)
 
             prompt = (
                 "Cinematic studio portrait on a pure black background, no environment, no room, no objects. "
@@ -933,10 +917,9 @@ async def _run_veo_pipeline(job_id: str):
                 + "Preserve the exact age, face, identity, hair, skin and clothing of the person "
                 "in the reference image. Do not alter their appearance in any way. "
                 + expression
-                + f"The person {speak_style}, "
-                f"directly addressing {name_ascii} as a {rel_ascii} would, "
-                f"saying these exact words: "
-                f'"{chunk_ascii}" '
+                + f"The person says this out loud in Turkish (lip sync required): "
+                f'"{chunk_text}" '
+                + f"Speak slowly, warmly and emotionally. {speak_style}. "
                 + ("Their expression softens with quiet emotional resolve as they finish. " if is_last else "")
                 + movement
                 + "Static camera, no zoom, no pan."
@@ -965,22 +948,24 @@ async def _run_veo_pipeline(job_id: str):
 
             await db.video_jobs.update_one(
                 {"id": job_id},
-                {"$set": {"progress": int((i + 1) / NUM_CLIPS * 90)}},
+                {"$set": {"progress": int((i + 1) / num_clips * 90)}},
             )
 
             # Sonraki klip icin son kareyi gecis noktasi olarak kullan
-            if i < NUM_CLIPS - 1:
+            if i < num_clips - 1:
                 next_frame = os.path.join(workdir, f"f{i}.png")
                 await asyncio.to_thread(_ffmpeg_last_frame, clip_local, next_frame)
                 current_ref = await fal_client.upload_file_async(next_frame)
                 logger.info(f"[veo {job_id}] Gecis karesi yuklendi: {current_ref}")
 
-        # Klipleri birlestir (ses dahil, Veo tarafindan uretildi)
-        final_local = os.path.join(workdir, "final.mp4")
-        await asyncio.to_thread(_ffmpeg_concat, clip_paths, final_local)
-        logger.info(f"[veo {job_id}] Klipler birlestirildi")
-
-        final_url = await fal_client.upload_file_async(final_local)
+        # Kutlama ise ffmpeg yok — tek klip direkt upload
+        if is_celebration:
+            final_url = await fal_client.upload_file_async(clip_paths[0])
+        else:
+            final_local = os.path.join(workdir, "final.mp4")
+            await asyncio.to_thread(_ffmpeg_concat, clip_paths, final_local)
+            logger.info(f"[veo {job_id}] Klipler birlestirildi")
+            final_url = await fal_client.upload_file_async(final_local)
         logger.info(f"[veo {job_id}] Final yuklendi: {final_url}")
 
         await db.video_jobs.update_one(
