@@ -125,6 +125,7 @@ class MemoryFormBody(BaseModel):
     name: str
     relationship: str
     last_memory: Optional[str] = None
+    occasion: Optional[str] = "normal"
 
 
 class MemoryForm(BaseModel):
@@ -447,9 +448,72 @@ async def get_photo(photo_id: str):
     )
 
 
+# ---------- Turkce ASCII donusum ----------
+def _to_ascii(text: str) -> str:
+    """Turkce karakterleri ASCII'ye cevir — Veo promptu icin."""
+    tr_map = str.maketrans("ğĞşŞıİöÖüÜçÇ", "gGsSimoOuUcC")
+    return text.translate(tr_map)
+
+
+OCCASION_PROMPTS = {
+    "normal": {
+        "system": (
+            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
+            "Fotodaki kisi karsi taraftaki kisiye samimi bir video mesaji birakiyor. "
+            "15-18 kelime, sakin, duygusal, isim kullan."
+        ),
+        "veo_style": "speaks SLOWLY, CALMLY and EMOTIONALLY in Turkish",
+        "fallback": lambda name: f"{name}, seni her gun dusunuyorum ve kalbimde hep yanimdasin.",
+    },
+    "dogum_gunu": {
+        "system": (
+            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
+            "Fotodaki kisi, karsi taraftaki kisinin DOGUM GUNUNU kutluyor. "
+            "Cok icten, sevgi dolu, mutlu bir kutlama cumlesi yaz. "
+            "15-18 kelime, isim kullan, dogum gunune atif yap."
+        ),
+        "veo_style": "speaks WARMLY and JOYFULLY in Turkish, with a big loving smile",
+        "fallback": lambda name: f"Dogum gunun kutlu olsun {name}, bu ozel gunde kalbim seninle dolu.",
+    },
+    "bayram": {
+        "system": (
+            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
+            "Fotodaki kisi, karsi taraftaki kisinin BAYRAMINI kutluyor. "
+            "Samimi, sicak, geleneksel bir bayram kutlama cumlesi yaz. "
+            "15-18 kelime, isim kullan, bayrami kutla."
+        ),
+        "veo_style": "speaks WARMLY and SINCERELY in Turkish, with a gentle loving smile",
+        "fallback": lambda name: f"Bayramin kutlu olsun {name}, bu mubarek gunlerde seni cok ozledim.",
+    },
+    "yildonumu": {
+        "system": (
+            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
+            "Fotodaki kisi, karsi taraftaki kisinin YILDONUMUNU kutluyor. "
+            "Romantik, duygusal, ozlem dolu bir kutlama cumlesi yaz. "
+            "15-18 kelime, isim kullan."
+        ),
+        "veo_style": "speaks TENDERLY and EMOTIONALLY in Turkish, with warm loving eyes",
+        "fallback": lambda name: f"Yildonumumuz kutlu olsun {name}, seninle gecirdigim her an hayatimin anlami.",
+    },
+    "mezuniyet": {
+        "system": (
+            "Sen Turkce konusan duygusal bir senaryo yazarisin. "
+            "Fotodaki kisi, karsi taraftaki kisinin MEZUNIYETINI kutluyor. "
+            "Gurur dolu, sevgi dolu, ilham verici bir kutlama cumlesi yaz. "
+            "15-18 kelime, isim kullan, basariyi kutla."
+        ),
+        "veo_style": "speaks PROUDLY and EMOTIONALLY in Turkish, with eyes full of pride and love",
+        "fallback": lambda name: f"Mezuniyetin kutlu olsun {name}, sana olan gurur ve sevgim her zaman yaninda.",
+    },
+}
+
 # ---------- Memory form + AI sentence ----------
-async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str]) -> str:
+async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str], occasion: str = "normal") -> str:
+    occ = OCCASION_PROMPTS.get(occasion, OCCASION_PROMPTS["normal"])
+    fallback = occ["fallback"](name)
     if not last_memory or not last_memory.strip():
+        if occasion != "normal":
+            return fallback
         return f"{name}, seni her gun dusunuyorum ve kalbimde hep yanimdasin."
     try:
         ac = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -457,33 +521,25 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
             ac.messages.create,
             model="claude-sonnet-4-5-20250929",
             max_tokens=150,
-            system=(
-                "Sen Turkce konusan, sicak, sinematik, duygusal bir senaryo yazarisin. "
-                "Fotodaki kisi, video mesajinda karsi taraftaki kisiye hitap ediyor. "
-                "Fotodaki kisinin agzindan, karsi tarafin adini kullanarak, aniya atifta bulunan TEK bir cumle yaz. "
-                "Cumle KESINLIKLE EN AZ 15, EN FAZLA 18 kelime olmali. "
-                "15 kelimenin altinda KABUL EDILMEZ. Say ve kontrol et. "
-                "Sakin, duygusal, aceleci degil. Kliseden kacin. Sadece cumleyi dondur."
-            ),
+            system=occ["system"],
             messages=[{
                 "role": "user",
                 "content": (
                     f"Fotodaki kisinin kim oldugu: {relationship}\n"
                     f"Konusulan kisinin adi: {name}\n"
-                    f"Paylasilan ani: {last_memory}\n\n"
-                    f"Fotodaki {relationship}, {name}'e hitap ederek bu aniya dair 15-18 kelimelik 1 cumle soylüyor."
+                    f"Ani veya mesaj: {last_memory}\n\n"
+                    f"15-18 kelimelik 1 cumle yaz, {name} adini kullan."
                 )
             }]
         )
         line = (response.content[0].text or "").strip().strip('"').strip("'").splitlines()[0]
         words = line.split()
         if len(words) < 15:
-            # Kisa geldiyse uzat
-            line = line.rstrip(".") + f", seni her gun dusunuyorum ve kalbimde hep yanimdasin."
+            line = line.rstrip(".") + f", seni cok seviyorum ve hep yanindayim."
         return line[:300]
     except Exception as e:
         logger.warning(f"[ai-sentence] fallback ({e})")
-        return f"{name}, seni her gun dusunuyorum ve kalbimde hep yanimdasin."
+        return fallback
 
 
 async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str) -> str:
@@ -568,7 +624,8 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
     name = body.name.strip()[:40] or "Sevgilim"
     rel = body.relationship.strip()[:30] or "Sevdigim"
     memory = (body.last_memory or "").strip()[:400]
-    ai_sentence = await _generate_ai_sentence(name, rel, memory)
+    occasion = body.occasion or "normal"
+    ai_sentence = await _generate_ai_sentence(name, rel, memory, occasion)
     full = await _build_full_script(name, rel, memory, ai_sentence)
     rec = MemoryForm(
         photo_id=body.photo_id, name=name, relationship=rel,
@@ -579,10 +636,11 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
     job = VideoJob(photo_id=body.photo_id, status="awaiting_payment", payment_status="unpaid",
                    user_email=user.get("email") if user else None)
     job_doc = job.model_dump()
+    job_doc["occasion"] = occasion
     if user:
         job_doc["user_id"] = user["user_id"]
     await db.video_jobs.insert_one(job_doc)
-    logger.info(f"[memory/form] photo={body.photo_id} job={job.id} user={user.get('email') if user else 'anon'}")
+    logger.info(f"[memory/form] photo={body.photo_id} job={job.id} occasion={occasion} user={user.get('email') if user else 'anon'}")
 
     return {"form": rec.model_dump(), "job_id": job.id}
 
@@ -861,16 +919,24 @@ async def _run_veo_pipeline(job_id: str):
             chunk_text = chunks[i] if chunks[i] else full_script
             is_last = (i == NUM_CLIPS - 1)
 
+            # Occasion'a gore stil + ASCII donusum
+            occasion = job.get("occasion", "normal")
+            occ_data = OCCASION_PROMPTS.get(occasion, OCCASION_PROMPTS["normal"])
+            speak_style = occ_data["veo_style"]
+            chunk_ascii = _to_ascii(chunk_text)
+            name_ascii = _to_ascii(name_for_prompt)
+            rel_ascii = _to_ascii(relationship)
+
             prompt = (
                 "Cinematic studio portrait on a pure black background, no environment, no room, no objects. "
                 + lighting
                 + "Preserve the exact age, face, identity, hair, skin and clothing of the person "
                 "in the reference image. Do not alter their appearance in any way. "
                 + expression
-                + f"The person speaks the following lines SLOWLY, CALMLY and EMOTIONALLY in Turkish, "
-                f"like an elderly person speaking from the heart — not rushed, not panicked, unhurried and sincere. "
-                f"Directly addressing {name_for_prompt} as a {relationship} would: "
-                f'"{chunk_text}" '
+                + f"The person {speak_style}, "
+                f"directly addressing {name_ascii} as a {rel_ascii} would, "
+                f"saying these exact words: "
+                f'"{chunk_ascii}" '
                 + ("Their expression softens with quiet emotional resolve as they finish. " if is_last else "")
                 + movement
                 + "Static camera, no zoom, no pan."
@@ -2364,14 +2430,17 @@ OZEL_GUN_TYPES = {
 
 
 async def _kling_clip(image_url: str, prompt: str) -> str:
-    """Kling 3.0 ile tek klip üret."""
+    """Veo 3.1 Lite ile tek klip üret — ucuz ve hızlı."""
     handle = await fal_client.submit_async(
-        "fal-ai/kling-video/v1.6/pro/image-to-video",
+        "fal-ai/veo3.1/lite/image-to-video",
         arguments={
             "prompt": prompt,
             "image_url": image_url,
-            "duration": "5",
+            "duration": "5s",
+            "resolution": "480p",
             "aspect_ratio": "9:16",
+            "generate_audio": False,
+            "safety_tolerance": 4,
         },
     )
     result = await handle.get()
@@ -2453,9 +2522,24 @@ async def _run_ozel_gun(job_id: str, photos: list, ozel_gun: str, mesaj: str, is
         if not clip_paths:
             raise Exception("Hiç klip üretilemedi")
 
-        # Klipleri birleştir
+        # Klipleri basit concat yap — watermark sonra
         concat_path = os.path.join(workdir, "concat.mp4")
-        await asyncio.to_thread(_ffmpeg_concat, clip_paths, concat_path)
+        tmp_list = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False)
+        for p in clip_paths:
+            tmp_list.write(f"file '{os.path.abspath(p)}'\n")
+        tmp_list.flush()
+        tmp_list.close()
+        concat_cmd = [
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", tmp_list.name,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-vf", "scale=480:-2",
+            "-c:a", "aac", "-b:a", "96k",
+            concat_path,
+        ]
+        await asyncio.to_thread(
+            lambda: subprocess.run(concat_cmd, check=True, capture_output=True, timeout=300)
+        )
+        os.unlink(tmp_list.name)
 
         # Ses + müzik mix et
         final_path = os.path.join(workdir, "final.mp4")
