@@ -2743,15 +2743,73 @@ async def ozel_gun_admin_free(job_id: str, user: dict = Depends(require_user)):
     return {"status": "processing"}
 
 
+async def _evolink_seedance(image_urls: list, prompt: str, duration: int = 15) -> str:
+    """
+    EvoLink API ile Seedance 2.0 reference-to-video üret.
+    fal.ai'den 3.3x daha ucuz — $0.074/sn (480p Fast).
+    """
+    import httpx
+    evolink_key = os.environ.get("EVOLINK_API_KEY", "")
+    if not evolink_key:
+        raise Exception("EVOLINK_API_KEY eksik")
+
+    # Reference formatı: @Image1, @Image2 etc
+    references = [{"type": "image", "url": url} for url in image_urls]
+
+    async with httpx.AsyncClient(timeout=60) as hc:
+        resp = await hc.post(
+            "https://api.evolink.ai/v1/videos/generations",
+            headers={
+                "Authorization": f"Bearer {evolink_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "seedance-2.0-fast-reference-to-video",
+                "prompt": prompt,
+                "references": references,
+                "duration": duration,
+                "quality": "480p",
+                "aspect_ratio": "9:16",
+                "generate_audio": True,
+            }
+        )
+        resp.raise_for_status()
+        task = resp.json()
+        task_id = task["id"]
+        logger.info(f"[evolink] Task olusturuldu: {task_id}")
+
+    # Polling — tamamlanana kadar bekle
+    for attempt in range(120):  # max 10 dakika
+        await asyncio.sleep(5)
+        async with httpx.AsyncClient(timeout=30) as hc:
+            status_resp = await hc.get(
+                f"https://api.evolink.ai/v1/tasks/{task_id}",
+                headers={"Authorization": f"Bearer {evolink_key}"}
+            )
+            status_resp.raise_for_status()
+            data = status_resp.json()
+            status = data.get("status", "")
+            logger.info(f"[evolink] Task {task_id} status: {status} (attempt {attempt+1})")
+
+            if status == "completed":
+                video_url = data.get("video_url") or data.get("output", {}).get("url", "")
+                if video_url:
+                    return video_url
+                raise Exception(f"Tamamlandi ama video URL yok: {data}")
+            elif status in ("failed", "cancelled"):
+                raise Exception(f"Task basarisiz: {data.get('error', status)}")
+
+    raise Exception("EvoLink timeout — 10 dakika icerisinde tamamlanamadi")
+
+
 async def _run_seedance(job_id: str, photos: list, concept: str):
     """
-    Seedance 2.0 reference-to-video ile anı videosu üret.
+    EvoLink Seedance 2.0 ile anı videosu üret — fal.ai'den 3.3x ucuz.
     photos: [{"b64": "...", "role": "Me", "relation": "father"}]
     """
     import tempfile as _tf
-    logger.info(f"[seedance {job_id}] Pipeline başladı, concept={concept}, photos={len(photos)}")
+    logger.info(f"[seedance {job_id}] Pipeline başladı (EvoLink), concept={concept}, photos={len(photos)}")
     if not photos:
-        logger.error(f"[seedance {job_id}] Fotoğraf yok, pipeline durduruluyor")
         await db.seedance_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "failed", "error": "Fotograf bulunamadi"}}
@@ -2761,7 +2819,7 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
         concept_data = SEEDANCE_CONCEPTS.get(concept, SEEDANCE_CONCEPTS["sahil"])
         base_prompt = concept_data["prompt"]
 
-        # Kişi tanımlaması — {people} placeholder'ını doldur
+        # Kişi tanımlaması
         people_parts = []
         for i, p in enumerate(photos):
             rel = p.get("relation", "person")
@@ -2769,7 +2827,7 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
         people_str = " and ".join(people_parts)
         prompt = base_prompt.replace("{people}", people_str)
 
-        # Her fotoğrafı fal.ai'ye yükle
+        # Her fotoğrafı yükle
         image_urls = []
         for i, p in enumerate(photos):
             tmp = _tf.NamedTemporaryFile(suffix=".jpg", delete=False)
@@ -2780,28 +2838,16 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
             image_urls.append(url)
             logger.info(f"[seedance {job_id}] @Image{i+1} yuklendi: {url}")
 
-        # Kimlik koruma talimatını başa ekle
         full_prompt = (
             f"IMPORTANT: The people in this video are {people_str}. "
             f"Preserve the exact face, appearance and identity of each person "
             f"from their reference image throughout ALL shots. "
             f"{prompt}"
         )
-        logger.info(f"[seedance {job_id}] Prompt ({len(full_prompt)} chars): {full_prompt[:300]}...")
+        logger.info(f"[seedance {job_id}] Prompt: {full_prompt[:200]}...")
 
-        handle = await fal_client.submit_async(
-            "bytedance/seedance-2.0/fast/reference-to-video",
-            arguments={
-                "prompt": full_prompt,
-                "image_urls": image_urls,
-                "resolution": "480p",
-                "duration": "15",
-                "aspect_ratio": "9:16",
-                "generate_audio": True,
-            },
-        )
-        result = await handle.get()
-        video_url = result["video"]["url"]
+        # EvoLink API
+        video_url = await _evolink_seedance(image_urls, full_prompt, duration=15)
         logger.info(f"[seedance {job_id}] Ham video hazir: {video_url}")
 
         # Watermark ekle
