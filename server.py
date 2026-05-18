@@ -919,10 +919,12 @@ async def _run_veo_pipeline(job_id: str):
             "Subtle mouth movement, intimate close-up, slow blinks. ",
         ]
 
-        # Occasion kontrolü — kutlama ise tek 8sn klip
+        # Occasion kontrolü — kutlama ise tek 8sn klip, Azerice ise de 8sn
         occasion = job.get("occasion", "normal")
+        language = job.get("language", "tr")
         is_celebration = occasion in ("dogum_gunu", "bayram", "yildonumu", "mezuniyet")
-        num_clips = 1 if is_celebration else NUM_CLIPS
+        is_az = language == "az"
+        num_clips = 1 if (is_celebration or is_az) else NUM_CLIPS
 
         # Script'i klip sayisina gore esit parcalara bol
         sentences = [s.strip() for s in full_script.replace("...", ".").split(".") if s.strip()]
