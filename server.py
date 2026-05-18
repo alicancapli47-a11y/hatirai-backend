@@ -126,6 +126,7 @@ class MemoryFormBody(BaseModel):
     relationship: str
     last_memory: Optional[str] = None
     occasion: Optional[str] = "normal"
+    language: Optional[str] = "tr"
 
 
 class MemoryForm(BaseModel):
@@ -484,13 +485,49 @@ OCCASION_PROMPTS = {
 }
 
 # ---------- Memory form + AI sentence ----------
-async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str], occasion: str = "normal") -> str:
+LANG_SCRIPTS = {
+    "dogum_gunu": {
+        "tr": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Doğum günün kutlu olsun!",
+        "az": lambda name: f"Əziz {name}, yanımda olmadığımı düşünmə, mən hər an sənin yanındayam, səni görürəm. Ad günün mübarək olsun!",
+        "en": lambda name: f"Dear {name}, don't think I'm not there, I am with you every moment, I see you. Happy birthday!",
+    },
+    "bayram": {
+        "tr": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Bayramın kutlu olsun!",
+        "az": lambda name: f"Əziz {name}, yanımda olmadığımı düşünmə, mən hər an sənin yanındayam. Bayramın mübarək olsun!",
+        "en": lambda name: f"Dear {name}, don't think I'm not there, I am with you every moment. Happy holidays!",
+    },
+    "yildonumu": {
+        "tr": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Yıldönümümüz kutlu olsun!",
+        "az": lambda name: f"Əziz {name}, yanımda olmadığımı düşünmə, mən hər an sənin yanındayam. İldönümümüz mübarək olsun!",
+        "en": lambda name: f"Dear {name}, don't think I'm not there, I am with you every moment. Happy anniversary!",
+    },
+    "mezuniyet": {
+        "tr": lambda name: f"Sevgili {name}, yanında değilim diye düşünme, ben her an senin yanındayım, seni görüyorum. Mezuniyetin kutlu olsun!",
+        "az": lambda name: f"Əziz {name}, yanımda olmadığımı düşünmə, mən hər an sənin yanındayam. Məzuniyyətin mübarək olsun!",
+        "en": lambda name: f"Dear {name}, don't think I'm not there, I am with you every moment. Congratulations on your graduation!",
+    },
+}
+
+LANG_SYSTEM = {
+    "tr": "Sen Turkce konusan duygusal bir senaryo yazarisin. 15-18 kelime, sakin, duygusal, isim kullan. Sadece cumleyi yaz.",
+    "az": "Sən Azərbaycan dilində danışan emosional bir ssenarist sən. 15-18 söz, sakit, emosional, adı istifadə et. Yalnız cümləni yaz.",
+    "en": "You are an emotional screenwriter. Write 15-18 words, calm, emotional, use the name. Write only the sentence.",
+}
+
+LANG_SPEAK = {
+    "tr": "speaks SLOWLY, CALMLY and EMOTIONALLY in Turkish",
+    "az": "speaks SLOWLY, CALMLY and EMOTIONALLY in Azerbaijani",
+    "en": "speaks SLOWLY, CALMLY and EMOTIONALLY in English",
+}
+
+async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optional[str], occasion: str = "normal", language: str = "tr") -> str:
     occ = OCCASION_PROMPTS.get(occasion, OCCASION_PROMPTS["normal"])
     
-    # Kutlama occasion'larında sabit metin kullan — Claude'a gerek yok
-    fixed = occ.get("fixed_script")
-    if fixed is not None:
-        return fixed(name)
+    # Kutlama occasion'larında dile göre sabit metin kullan
+    if occasion in LANG_SCRIPTS:
+        lang_scripts = LANG_SCRIPTS[occasion]
+        script_fn = lang_scripts.get(language, lang_scripts["tr"])
+        return script_fn(name)
     
     # Normal mesaj — Claude üretir
     fallback = occ["fallback"](name)
@@ -504,7 +541,7 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
             ac.messages.create,
             model="claude-sonnet-4-5-20250929",
             max_tokens=150,
-            system=occ["system"],
+            system=LANG_SYSTEM.get(language, LANG_SYSTEM["tr"]),
             messages=[{
                 "role": "user",
                 "content": (
@@ -525,7 +562,7 @@ async def _generate_ai_sentence(name: str, relationship: str, last_memory: Optio
         return fallback
 
 
-async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str) -> str:
+async def _build_full_script(name: str, relationship: str, last_memory: Optional[str], ai_sentence: str, language: str = "tr") -> str:
     """
     2 ayrı cümle üret — her biri 15-18 kelime, sakin ve duygusal.
     Klip 1 → 1. cümle, Klip 2 → 2. cümle.
@@ -608,8 +645,9 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
     rel = body.relationship.strip()[:30] or "Sevdigim"
     memory = (body.last_memory or "").strip()[:400]
     occasion = body.occasion or "normal"
-    ai_sentence = await _generate_ai_sentence(name, rel, memory, occasion)
-    full = await _build_full_script(name, rel, memory, ai_sentence)
+    language = body.language or "tr"
+    ai_sentence = await _generate_ai_sentence(name, rel, memory, occasion, language)
+    full = await _build_full_script(name, rel, memory, ai_sentence, language)
     rec = MemoryForm(
         photo_id=body.photo_id, name=name, relationship=rel,
         last_memory=memory or None, ai_sentence=ai_sentence, full_script=full,
@@ -620,6 +658,7 @@ async def submit_memory_form(body: MemoryFormBody, user: Optional[dict] = Depend
                    user_email=user.get("email") if user else None)
     job_doc = job.model_dump()
     job_doc["occasion"] = occasion
+    job_doc["language"] = language
     if user:
         job_doc["user_id"] = user["user_id"]
     await db.video_jobs.insert_one(job_doc)
@@ -908,8 +947,9 @@ async def _run_veo_pipeline(job_id: str):
 
             # Occasion'a gore stil
             occasion = job.get("occasion", "normal")
+            language = job.get("language", "tr")
             occ_data = OCCASION_PROMPTS.get(occasion, OCCASION_PROMPTS["normal"])
-            speak_style = occ_data["veo_style"]
+            speak_style = LANG_SPEAK.get(language, LANG_SPEAK["tr"])
 
             prompt = (
                 "Cinematic studio portrait on a pure black background, no environment, no room, no objects. "
