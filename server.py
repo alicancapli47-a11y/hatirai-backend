@@ -1838,7 +1838,30 @@ async def lemonsqueezy_webhook(request: Request):
         ozel_gun_job_id = custom_data.get("ozel_gun_job_id", "")
         veo_job_id = custom_data.get("job_id", "") or attrs.get("notes", "")
 
-        if ozel_gun_job_id:
+        if custom_data.get("type") == "ozel_talep":
+            # Özel talep ödemesi onaylandı — email gönder
+            ozel_name = custom_data.get("name", "")
+            ozel_email = custom_data.get("email", "")
+            logger.info(f"[lemonsqueezy] Ozel talep odeme onaylandi: {ozel_email}")
+            if RESEND_API_KEY:
+                try:
+                    import httpx as _hx
+                    async with _hx.AsyncClient(timeout=10) as hc:
+                        await hc.post(
+                            "https://api.resend.com/emails",
+                            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                            json={
+                                "from": "HatirAI <noreply@hatirai.com>",
+                                "to": ["tvarzmedya@gmail.com"],
+                                "subject": f"ODEME ALINDI — Ozel Talep: {ozel_name}",
+                                "html": f"<p>Musteri: {ozel_name}</p><p>Email: {ozel_email}</p><p>1500 TL odeme alindi. DB den detaylari kontrol et.</p>"
+                            }
+                        )
+                except Exception as e:
+                    logger.warning(f"[ozel-talep-webhook] Email gonderilemedi: {e}")
+            return {"status": "ok"}
+
+        elif ozel_gun_job_id:
             job = await db.ozel_gun_jobs.find_one({"id": ozel_gun_job_id}, {"_id": 0})
             if not job:
                 return {"status": "error", "detail": "ozel_gun job not found"}
@@ -2795,8 +2818,6 @@ async def _evolink_seedance(image_urls: list, prompt: str, duration: int = 15) -
     if not evolink_key:
         raise Exception("EVOLINK_API_KEY eksik")
 
-    # Reference formatı: @Image1, @Image2 etc
-    references = [{"type": "image", "url": url} for url in image_urls]
 
     async with httpx.AsyncClient(timeout=60) as hc:
         resp = await hc.post(
@@ -2808,7 +2829,7 @@ async def _evolink_seedance(image_urls: list, prompt: str, duration: int = 15) -
             json={
                 "model": "seedance-2.0-fast-reference-to-video",
                 "prompt": prompt,
-                "references": references,
+                "image_urls": image_urls,
                 "duration": duration,
                 "quality": "480p",
                 "aspect_ratio": "9:16",
@@ -3253,6 +3274,148 @@ async def did_get_token():
         raise HTTPException(status_code=500, detail="DID_API_KEY eksik")
     return {"token": api_key}
 
+
+
+@api_router.post("/ozel-talep/submit")
+async def ozel_talep_submit(request: Request):
+    """Özel video talebi — form verilerini email ile gönder."""
+    import httpx, base64 as _b64e
+    try:
+        form = await request.form()
+        name = form.get("name", "")
+        relationship = form.get("relationship", "")
+        memory = form.get("memory", "")
+        email = form.get("email", "")
+
+        # Fotoğrafı Cloudinary'e yükle
+        photo_file = form.get("photo")
+        photo_url = ""
+        if photo_file:
+            photo_bytes = await photo_file.read()
+            tmp_path = f"/tmp/talep_{uuid.uuid4().hex[:8]}.jpg"
+            with open(tmp_path, "wb") as f:
+                f.write(photo_bytes)
+            try:
+                photo_url = await fal_client.upload_file_async(tmp_path)
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+        # Ses dosyası varsa yükle
+        audio_file = form.get("audio")
+        audio_url = ""
+        if audio_file:
+            audio_bytes = await audio_file.read()
+            tmp_audio = f"/tmp/talep_audio_{uuid.uuid4().hex[:8]}.mp3"
+            with open(tmp_audio, "wb") as f:
+                f.write(audio_bytes)
+            try:
+                audio_url = await fal_client.upload_file_async(tmp_audio)
+                os.unlink(tmp_audio)
+            except Exception:
+                pass
+
+        # DB'ye kaydet
+        await db.ozel_talepler.insert_one({
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "relationship": relationship,
+            "memory": memory,
+            "email": email,
+            "photo_url": photo_url,
+            "audio_url": audio_url,
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc),
+        })
+
+        # Email gönder
+        if RESEND_API_KEY:
+            try:
+                async with httpx.AsyncClient(timeout=10) as hc:
+                    await hc.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                        json={
+                            "from": "HatirAI <noreply@hatirai.com>",
+                            "to": ["tvarzmedya@gmail.com"],
+                            "subject": f"Yeni Ozel Talep — {name} ({relationship})",
+                            "html": f"""
+                            <div style="background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:32px;max-width:600px;">
+                              <h1 style="color:#C9A961;font-size:24px;letter-spacing:4px;">YENi OZEL TALEP</h1>
+                              <hr style="border-color:#1E1C18;margin:16px 0;">
+                              <p><strong>Musteri Email:</strong> {email}</p>
+                              <p><strong>Yakin Adi:</strong> {name}</p>
+                              <p><strong>Iliski:</strong> {relationship}</p>
+                              <p><strong>Ani/Mesaj:</strong></p>
+                              <p style="background:#111;padding:16px;font-style:italic;">{memory}</p>
+                              {f'<p><strong>Fotograf:</strong> <a href="{photo_url}" style="color:#C9A961;">{photo_url}</a></p>' if photo_url else ""}
+                              {f'<p><strong>Ses:</strong> <a href="{audio_url}" style="color:#C9A961;">{audio_url}</a></p>' if audio_url else ""}
+                              <hr style="border-color:#1E1C18;margin:16px 0;">
+                              <p style="opacity:0.5;font-size:11px;">hatirai.com ozel talep sistemi</p>
+                            </div>
+                            """
+                        }
+                    )
+                logger.info(f"[ozel-talep] Email gonderildi: {email}")
+            except Exception as e:
+                logger.warning(f"[ozel-talep] Email gonderilemedi: {e}")
+
+        # Lemonsqueezy checkout oluştur
+        import httpx as _httpx
+        test_mode = os.environ.get("LEMON_TEST_MODE", "false").lower() == "true"
+        if test_mode:
+            lemon_key = os.environ.get("LEMONSQUEEZY_API_KEY_TEST", "")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_TEST", "1640878")
+            store_id = os.environ.get("LEMONSQUEEZY_STORE_ID_TEST", "370282")
+        else:
+            lemon_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+            variant_id = os.environ.get("LEMONSQUEEZY_VARIANT_ID_OZEL_TALEP", "1674755")
+            store_id = os.environ.get("LEMONSQUEEZY_STORE_ID", "370282")
+
+        checkout_url = ""
+        try:
+            async with _httpx.AsyncClient(timeout=30) as hc:
+                resp = await hc.post(
+                    "https://api.lemonsqueezy.com/v1/checkouts",
+                    headers={
+                        "Authorization": f"Bearer {lemon_key}",
+                        "Content-Type": "application/vnd.api+json",
+                        "Accept": "application/vnd.api+json",
+                    },
+                    json={
+                        "data": {
+                            "type": "checkouts",
+                            "attributes": {
+                                "checkout_data": {
+                                    "custom": {
+                                        "type": "ozel_talep",
+                                        "name": name,
+                                        "relationship": relationship,
+                                        "email": email,
+                                    }
+                                },
+                                "product_options": {
+                                    "redirect_url": f"{PUBLIC_BACKEND_URL}/ozel-talep-tesekkur",
+                                }
+                            },
+                            "relationships": {
+                                "store": {"data": {"type": "stores", "id": store_id}},
+                                "variant": {"data": {"type": "variants", "id": variant_id}}
+                            }
+                        }
+                    }
+                )
+                resp.raise_for_status()
+                checkout_url = resp.json()["data"]["attributes"]["url"]
+                logger.info(f"[ozel-talep] Checkout URL: {checkout_url}")
+        except Exception as e:
+            logger.warning(f"[ozel-talep] Checkout olusturulamadi: {e}")
+
+        return {"status": "ok", "checkout_url": checkout_url}
+
+    except Exception as e:
+        logger.exception("[ozel-talep] Hata")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/durmus/chat")
 async def durmus_chat(request: Request):
