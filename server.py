@@ -1847,6 +1847,7 @@ async def lemonsqueezy_webhook(request: Request):
                 try:
                     import httpx as _hx
                     async with _hx.AsyncClient(timeout=10) as hc:
+                        # Sana bildirim emaili
                         await hc.post(
                             "https://api.resend.com/emails",
                             headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
@@ -1854,9 +1855,39 @@ async def lemonsqueezy_webhook(request: Request):
                                 "from": "HatirAI <noreply@hatirai.com>",
                                 "to": ["tvarzmedya@gmail.com"],
                                 "subject": f"ODEME ALINDI — Ozel Talep: {ozel_name}",
-                                "html": f"<p>Musteri: {ozel_name}</p><p>Email: {ozel_email}</p><p>1500 TL odeme alindi. DB den detaylari kontrol et.</p>"
+                                "html": f"<div style='background:#080808;color:#E8E0D0;font-family:Georgia;padding:32px;'><h2 style='color:#C9A961;'>ODEME ALINDI</h2><p>Musteri: {ozel_name}</p><p>Email: {ozel_email}</p><p>1500 TL odeme alindi. DB den detaylari kontrol et.</p></div>"
                             }
                         )
+                        # Müşteriye onay emaili
+                        if ozel_email:
+                            await hc.post(
+                                "https://api.resend.com/emails",
+                                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                                json={
+                                    "from": "HatirAI <noreply@hatirai.com>",
+                                    "to": [ozel_email],
+                                    "subject": "Ödemeniz Alındı — HatırAI Özel Video",
+                                    "html": f"""
+                                    <div style='background:#080808;color:#E8E0D0;font-family:Georgia,serif;padding:48px;max-width:480px;margin:0 auto;'>
+                                      <h1 style='color:#C9A961;font-size:28px;letter-spacing:4px;'>HATIR<span style='color:#E8E0D0;'>AI</span></h1>
+                                      <hr style='border-color:#1E1C18;margin:24px 0;'>
+                                      <h2 style='font-size:20px;color:#E8E0D0;font-weight:normal;'>Ödemeniz başarıyla alındı.</h2>
+                                      <p style='color:#9C9A93;line-height:1.8;margin-top:16px;'>
+                                        Sayın {ozel_name},<br><br>
+                                        Özel video talebiniz ve ödemeniz onaylandı. 
+                                        Ekibimiz <strong style='color:#C9A961;'>24 saat içinde</strong> videonuzu 
+                                        hazırlayıp bu email adresine gönderecektir.
+                                      </p>
+                                      <p style='color:#9C9A93;line-height:1.8;margin-top:16px;'>
+                                        Sorularınız için:<br>
+                                        <a href='mailto:destek@hatirai.com' style='color:#C9A961;'>destek@hatirai.com</a>
+                                      </p>
+                                      <hr style='border-color:#1E1C18;margin:24px 0;'>
+                                      <p style='font-size:11px;color:#4A4540;'>HatırAI — hatirai.com</p>
+                                    </div>
+                                    """
+                                }
+                            )
                 except Exception as e:
                     logger.warning(f"[ozel-talep-webhook] Email gonderilemedi: {e}")
             return {"status": "ok"}
@@ -2855,7 +2886,20 @@ async def _evolink_seedance(image_urls: list, prompt: str, duration: int = 15) -
             logger.info(f"[evolink] Task {task_id} status: {status} (attempt {attempt+1})")
 
             if status == "completed":
-                video_url = data.get("video_url") or data.get("output", {}).get("url", "")
+                logger.info(f"[evolink] Tamamlandi, full response: {data}")
+                # Farklı URL field'larını dene
+                video_url = (
+                    data.get("video_url") or
+                    data.get("url") or
+                    data.get("output") or
+                    (data.get("result") or {}).get("url") or
+                    (data.get("result") or {}).get("video_url") or
+                    (data.get("task_info") or {}).get("url") or
+                    ""
+                )
+                # String ise direkt kullan
+                if isinstance(video_url, dict):
+                    video_url = video_url.get("url", "")
                 if video_url:
                     return video_url
                 raise Exception(f"Tamamlandi ama video URL yok: {data}")
