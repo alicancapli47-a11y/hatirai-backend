@@ -2887,19 +2887,15 @@ async def _evolink_seedance(image_urls: list, prompt: str, duration: int = 15) -
 
             if status == "completed":
                 logger.info(f"[evolink] Tamamlandi, full response: {data}")
-                # Farklı URL field'larını dene
-                video_url = (
-                    data.get("video_url") or
-                    data.get("url") or
-                    data.get("output") or
-                    (data.get("result") or {}).get("url") or
-                    (data.get("result") or {}).get("video_url") or
-                    (data.get("task_info") or {}).get("url") or
-                    ""
-                )
-                # String ise direkt kullan
-                if isinstance(video_url, dict):
-                    video_url = video_url.get("url", "")
+                # URL results array'inde geliyor
+                results = data.get("results", [])
+                video_url = results[0] if results else ""
+                if not video_url:
+                    video_url = (
+                        data.get("video_url") or
+                        data.get("url") or
+                        (data.get("output") or {}).get("url", "")
+                    )
                 if video_url:
                     return video_url
                 raise Exception(f"Tamamlandi ama video URL yok: {data}")
