@@ -2957,6 +2957,37 @@ async def _run_seedance(job_id: str, photos: list, concept: str):
         watermarked_url = await _add_seedance_watermark(job_id, video_url)
         final_video_url = watermarked_url or video_url
 
+        # Cloudinary'e kopyala — EvoLink URL'leri 24 saatte expire ediyor
+        try:
+            import httpx as _hx
+            CLOUDINARY_CLOUD = os.environ.get("CLOUDINARY_CLOUD_NAME", "dubei7eax")
+            CLOUDINARY_KEY = os.environ.get("CLOUDINARY_API_KEY", "")
+            CLOUDINARY_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
+            if CLOUDINARY_KEY and CLOUDINARY_SECRET:
+                import hashlib, time as _time
+                timestamp = int(_time.time())
+                public_id = f"hatirai_seedance_{job_id[:8]}"
+                sig_str = f"public_id={public_id}&timestamp={timestamp}&upload_preset=ml_default{CLOUDINARY_SECRET}"
+                signature = hashlib.sha1(sig_str.encode()).hexdigest()
+                async with _hx.AsyncClient(timeout=60) as hc:
+                    r = await hc.post(
+                        f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD}/video/upload",
+                        data={
+                            "file": final_video_url,
+                            "public_id": public_id,
+                            "api_key": CLOUDINARY_KEY,
+                            "timestamp": timestamp,
+                            "signature": signature,
+                        }
+                    )
+                    if r.status_code == 200:
+                        cdn_url = r.json().get("secure_url", "")
+                        if cdn_url:
+                            final_video_url = cdn_url
+                            logger.info(f"[seedance {job_id}] Cloudinary'e yuklendi: {cdn_url}")
+        except Exception as e:
+            logger.warning(f"[seedance {job_id}] Cloudinary yukleme hatasi, orijinal URL kullanilacak: {e}")
+
         await db.seedance_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "ready", "video_url": final_video_url}},
